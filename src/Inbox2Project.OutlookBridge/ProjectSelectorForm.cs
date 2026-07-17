@@ -3,7 +3,6 @@ using Inbox2Project.Services;
 using Button = System.Windows.Forms.Button;
 using ComboBox = System.Windows.Forms.ComboBox;
 using DialogResult = System.Windows.Forms.DialogResult;
-using FolderBrowserDialog = System.Windows.Forms.FolderBrowserDialog;
 using Form = System.Windows.Forms.Form;
 using Label = System.Windows.Forms.Label;
 using MessageBox = System.Windows.Forms.MessageBox;
@@ -106,18 +105,8 @@ internal sealed class ProjectSelectorForm : Form
         {
             Left = 20,
             Top = 100,
-            Width = 430,
+            Width = 540,
         };
-
-        var browseButton = new Button
-        {
-            Left = 460,
-            Top = 98,
-            Width = 100,
-            Height = 28,
-            Text = "Browse...",
-        };
-        browseButton.Click += (_, _) => BrowseForFolder();
 
         var addButton = new Button
         {
@@ -133,7 +122,7 @@ internal sealed class ProjectSelectorForm : Form
         addTab.Controls.Add(_projectNameTextBox);
         addTab.Controls.Add(new Label { Left = 20, Top = 80, Width = 260, Text = "Parent Folder To Save This Project Under" });
         addTab.Controls.Add(_parentFolderTextBox);
-        addTab.Controls.Add(browseButton);
+        addTab.Controls.Add(new Label { Left = 20, Top = 132, Width = 540, Text = "Paste an existing folder path here. The project will not be added unless that folder already exists." });
         addTab.Controls.Add(addButton);
 
         _tabs.Controls.Add(selectTab);
@@ -216,21 +205,6 @@ internal sealed class ProjectSelectorForm : Form
         Close();
     }
 
-    private void BrowseForFolder()
-    {
-        using var dialog = new FolderBrowserDialog();
-        dialog.Description = "Choose the parent folder where this project should be created.";
-        if (Directory.Exists(_parentFolderTextBox.Text))
-        {
-            dialog.SelectedPath = _parentFolderTextBox.Text;
-        }
-
-        if (dialog.ShowDialog() == DialogResult.OK)
-        {
-            _parentFolderTextBox.Text = dialog.SelectedPath;
-        }
-    }
-
     private void AddProject()
     {
         if (string.IsNullOrWhiteSpace(_projectNameTextBox.Text))
@@ -242,6 +216,12 @@ internal sealed class ProjectSelectorForm : Form
         if (string.IsNullOrWhiteSpace(_parentFolderTextBox.Text))
         {
             MessageBox.Show("Choose where the project should be saved.", "Inbox2Project", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        if (!Directory.Exists(_parentFolderTextBox.Text))
+        {
+            MessageBox.Show("That folder does not exist yet. Correct the path before adding the project.", "Inbox2Project", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 
