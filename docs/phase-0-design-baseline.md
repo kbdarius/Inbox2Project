@@ -18,7 +18,13 @@ No implementation for later phases is included.
 4. **Configuration store:** JSON file under `%AppData%\\Inbox2Project\\settings.json`.
 5. **Project structure rule:** Valid project folder must contain an `EMAILS` subfolder.
 6. **Safety rule:** Original Outlook item is never modified or deleted.
-7. **Naming rule baseline:** Subject-based naming with sanitization and collision suffixing.
+7. **Export rule baseline:** Always export selected email/thread content to `.txt`.
+8. **Attachment rule baseline:**
+   - If no attachments: save only `.txt` and do not create a folder.
+   - If attachments exist: prompt user to include them.
+   - If user chooses **No**: save only `.txt` and do not create a folder.
+   - If user chooses **Yes**: create a sanitized subject-named folder and save `.txt` plus attachments in that folder.
+9. **Naming rule baseline:** Subject-based naming with sanitization and collision suffixing.
 
 ## V1 architecture baseline
 
@@ -33,8 +39,10 @@ No implementation for later phases is included.
    - Coordinates operation pipeline:
      - selection validation,
      - project selection,
-     - EML save,
-     - attachment export (when present),
+     - thread/text extraction,
+     - `.txt` export,
+     - attachment decision prompt,
+     - conditional attachment export,
      - result shaping for UI/logging.
 
 3. **Configuration Service**
@@ -49,14 +57,15 @@ No implementation for later phases is included.
 5. **Filesystem Service**
    - Sanitizes names.
    - Resolves collisions with `_1`, `_2`, ... suffixing.
-   - Creates files/folders.
+   - Creates files/folders only when required by flow.
    - Performs preflight write checks and path validation.
 
 6. **Logging Service**
-   - Writes local structured logs (success/failure and error details).
+   - Writes local structured logs (success/failure, decisions, and error details).
 
 7. **UI Layer**
    - Project selection dialog with refresh.
+   - Attachment inclusion prompt when attachments exist.
    - Success/error notifications with actionable text.
 
 ## Sequence flow (V1, end-to-end)
@@ -68,15 +77,21 @@ No implementation for later phases is included.
 5. Project discovery scans `ProjectsRoot` and lists valid projects (those with `EMAILS`).
 6. User confirms project in selector (default to last selected when available).
 7. Workflow resolves target `EMAILS` path.
-8. Filesystem service sanitizes subject and prepares unique `.eml` filename.
-9. Add-in saves selected email as `.eml` into target `EMAILS`.
-10. If attachments exist:
-    - create sanitized unique attachment folder under `EMAILS`,
-    - save each attachment with unique sanitized name.
-11. Workflow emits operation result summary.
-12. UI shows success toast/dialog with saved paths.
-13. Logging service writes operation record.
-14. On recoverable errors, UI shows clear message; logs include technical detail.
+8. Workflow extracts email/thread content and metadata for text export.
+9. Filesystem service sanitizes subject and prepares unique `.txt` filename.
+10. Workflow writes `.txt` in `EMAILS`.
+11. Workflow checks for attachments.
+12. If no attachments, operation completes (no folder creation).
+13. If attachments exist, UI prompts whether to include them.
+14. If prompt result is **No**, operation completes with `.txt` only (no folder creation).
+15. If prompt result is **Yes**:
+    - create sanitized unique subject folder under `EMAILS`,
+    - move or write `.txt` into that folder,
+    - save each attachment with unique sanitized name into that folder.
+16. Workflow emits operation result summary.
+17. UI shows success toast/dialog with saved path(s).
+18. Logging service writes operation record.
+19. On recoverable errors, UI shows clear message; logs include technical detail.
 
 ## Error taxonomy and user-facing messages
 
@@ -87,9 +102,10 @@ No implementation for later phases is included.
 | PRJ_NONE_FOUND | Discovery | No project contains `EMAILS` | "No valid projects were found." | "Ensure project folders contain an `EMAILS` subfolder, then refresh." |
 | SEL_UNSUPPORTED | Selection | Non-mail item selected | "Selected item is not a supported email." | "Select a single email item and retry." |
 | SEL_EMPTY | Selection | Nothing selected | "No email is selected." | "Select one email and run the command again." |
+| TXT_EXPORT_FAILED | Text export | `.txt` write fails | "Email text could not be saved." | "Check destination access and retry." |
+| PROMPT_FAILED | Prompt/UI | Attachment prompt could not be shown or resolved | "Could not confirm attachment export choice." | "Retry command. If issue persists, restart Outlook." |
 | FS_WRITE_DENIED | Filesystem | Access denied on target | "Cannot write to target folder." | "Check folder permissions or choose another project." |
 | FS_PATH_INVALID | Filesystem | Invalid/too long path | "Target path is invalid." | "Shorten folder/file names or adjust project location." |
-| EML_SAVE_FAILED | Outlook/File save | SaveAs for email fails | "Email could not be saved." | "Retry. If issue persists, close and reopen Outlook." |
 | ATT_SAVE_FAILED | Attachment export | One or more attachments fail to save | "Some attachments could not be saved." | "Review log details and retry export." |
 | OUTLOOK_BUSY | Outlook interop | COM busy/temporary failure | "Outlook is busy. Please retry." | "Wait a moment and try again." |
 | UNKNOWN | General | Unhandled exception | "Unexpected error occurred." | "Retry and check logs for details." |
@@ -101,11 +117,15 @@ Phase 1 is accepted when all criteria below pass:
 1. A buildable Outlook add-in skeleton exists for Classic Outlook Desktop.
 2. A context command labeled `Save to Inbox2Project` is visible in email-item workflow.
 3. Clicking the command invokes handler logic.
-4. Handler validates selected item is a mail item and handles unsupported selections without crash.
-5. Placeholder confirmation dialog appears for valid mail selection.
-6. Invocation metadata is logged locally (at minimum: timestamp, item type, selection count, command invoked).
-7. Setup/run instructions for Phase 1 are documented.
-8. No file save logic (EML or attachments) is implemented in Phase 1.
+4. Handler validates selection rules (exactly one item and supported mail item) and handles unsupported selections without crash.
+5. Settings are loaded from `%AppData%\\Inbox2Project\\settings.json`, with required `ProjectsRoot` and optional `LastSelectedProject`.
+6. Project selector lists only valid projects containing `EMAILS`.
+7. Email/thread content is exported to `.txt` with metadata header.
+8. Attachment presence is detected and prompt behavior follows V1 rules.
+9. No-attachment path and attachment-declined path both save only `.txt` with no folder creation.
+10. Attachment-confirmed path creates sanitized subject folder and saves `.txt` plus attachments.
+11. Invocation, decisions, outputs, and errors are logged locally in structured form.
+12. Setup/run instructions and a test matrix for the three main paths are documented.
 
 ## Phase 0 checkpoint verification evidence
 
