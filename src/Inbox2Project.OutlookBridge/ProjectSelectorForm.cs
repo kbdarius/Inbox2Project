@@ -5,6 +5,7 @@ using ComboBox = System.Windows.Forms.ComboBox;
 using DialogResult = System.Windows.Forms.DialogResult;
 using Form = System.Windows.Forms.Form;
 using Label = System.Windows.Forms.Label;
+using ListBox = System.Windows.Forms.ListBox;
 using MessageBox = System.Windows.Forms.MessageBox;
 using MessageBoxButtons = System.Windows.Forms.MessageBoxButtons;
 using MessageBoxIcon = System.Windows.Forms.MessageBoxIcon;
@@ -25,6 +26,8 @@ internal sealed class ProjectSelectorForm : Form
     private readonly TextBox _projectNameTextBox;
     private readonly TextBox _parentFolderTextBox;
     private readonly Label _addStatusLabel;
+    private readonly ListBox _removeListBox;
+    private readonly Label _removeStatusLabel;
 
     public ProjectSelectorForm(
         ISettingsService settingsService,
@@ -137,13 +140,52 @@ internal sealed class ProjectSelectorForm : Form
         addTab.Controls.Add(addButton);
         addTab.Controls.Add(_addStatusLabel);
 
+        // ── Manage tab ──────────────────────────────────────────────
+        var manageTab = new TabPage("Manage Projects");
+
+        _removeListBox = new ListBox
+        {
+            Left = 20,
+            Top = 32,
+            Width = 540,
+            Height = 140,
+            SelectionMode = SelectionMode.One,
+        };
+
+        var removeButton = new Button
+        {
+            Left = 380,
+            Top = 184,
+            Width = 180,
+            Height = 36,
+            Text = "Remove Selected",
+        };
+        removeButton.Click += async (_, _) => await RemoveProjectAsync();
+
+        _removeStatusLabel = new Label
+        {
+            Left = 20,
+            Top = 230,
+            Width = 540,
+            Height = 32,
+            ForeColor = System.Drawing.Color.DarkGreen,
+        };
+
+        manageTab.Controls.Add(new Label { Left = 20, Top = 12, Width = 540, Text = "Custom saved projects (Default cannot be removed):" });
+        manageTab.Controls.Add(_removeListBox);
+        manageTab.Controls.Add(new Label { Left = 20, Top = 184, Width = 320, Height = 36, Text = "Removing a project only removes it from\nthis list. No files are deleted." });
+        manageTab.Controls.Add(removeButton);
+        manageTab.Controls.Add(_removeStatusLabel);
+
         _tabs.Controls.Add(selectTab);
         _tabs.Controls.Add(addTab);
+        _tabs.Controls.Add(manageTab);
         Controls.Add(_tabs);
 
         _parentFolderTextBox.Text = settings.ProjectsRoot;
 
         PopulateProjects(suggestedProjectPath);
+        PopulateRemoveList(settings.SavedProjects);
     }
 
     public string? SelectedProjectPath { get; private set; }
@@ -217,6 +259,48 @@ internal sealed class ProjectSelectorForm : Form
         Close();
     }
 
+    private void PopulateRemoveList(IEnumerable<SavedProjectDefinition> savedProjects)
+    {
+        _removeListBox.Items.Clear();
+        foreach (var proj in savedProjects
+            .Where(p => !string.Equals(p.Name, "Default", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            _removeListBox.Items.Add(new ProjectOption(proj.Name, proj.ProjectPath));
+        }
+    }
+
+    private async Task RemoveProjectAsync()
+    {
+        _removeStatusLabel.Text = string.Empty;
+        _removeStatusLabel.ForeColor = System.Drawing.Color.DarkGreen;
+
+        if (_removeListBox.SelectedItem is not ProjectOption option)
+        {
+            _removeStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
+            _removeStatusLabel.Text = "Select a project from the list first.";
+            return;
+        }
+
+        try
+        {
+            await _settingsService.RemoveProjectAsync(option.Path);
+            _projects.RemoveAll(p => string.Equals(p.Path, option.Path, StringComparison.OrdinalIgnoreCase));
+            _removeListBox.Items.Remove(option);
+            PopulateProjects(null);
+
+            var settings = await _settingsService.LoadAsync();
+            PopulateRemoveList(settings.SavedProjects);
+
+            _removeStatusLabel.Text = $"\u2713 '{option.Name}' removed from the list.";
+        }
+        catch (Exception exception)
+        {
+            _removeStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
+            _removeStatusLabel.Text = "Could not remove: " + exception.Message;
+        }
+    }
+
     private async Task AddProjectAsync()
     {
         _addStatusLabel.Text = string.Empty;
@@ -250,6 +334,8 @@ internal sealed class ProjectSelectorForm : Form
             _projects.Add(new ProjectOption(saved.Name, saved.ProjectPath));
             _projects.Sort((left, right) => StringComparer.OrdinalIgnoreCase.Compare(left.Name, right.Name));
             PopulateProjects(saved.ProjectPath);
+            var updatedSettings = await _settingsService.LoadAsync();
+            PopulateRemoveList(updatedSettings.SavedProjects);
             _addStatusLabel.Text = $"\u2713 '{saved.Name}' added. Go to Select Project tab to use it.";
             _projectNameTextBox.Clear();
         }

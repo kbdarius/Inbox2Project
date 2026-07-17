@@ -9,4 +9,6 @@ public interface ISettingsService
     Task SaveLastSelectedProjectAsync(string projectPath, CancellationToken cancellationToken = default);
 
     Task<SavedProjectDefinition> AddProjectAsync(string projectName, string parentFolderPath, CancellationToken cancellationToken = default);
+
+    Task RemoveProjectAsync(string projectPath, CancellationToken cancellationToken = default);
 }

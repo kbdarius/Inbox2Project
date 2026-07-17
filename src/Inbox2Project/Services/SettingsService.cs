@@ -88,6 +88,31 @@ public sealed class SettingsService : ISettingsService
         return existing;
     }
 
+    public async Task RemoveProjectAsync(string projectPath, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(projectPath))
+        {
+            return;
+        }
+
+        // Default project is protected from removal.
+        if (string.Equals(Path.GetFullPath(projectPath), Path.GetFullPath(_defaultProjectPath), StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var model = await LoadAsync(cancellationToken);
+        model.SavedProjects.RemoveAll(saved =>
+            string.Equals(saved.ProjectPath, projectPath, StringComparison.OrdinalIgnoreCase));
+
+        if (string.Equals(model.LastSelectedProject, projectPath, StringComparison.OrdinalIgnoreCase))
+        {
+            model.LastSelectedProject = _defaultProjectPath;
+        }
+
+        await SaveAsync(model, cancellationToken);
+    }
+
     private SettingsModel CreateDefaultSettings()
     {
         Directory.CreateDirectory(Path.Combine(_defaultProjectPath, "EMAILS"));
