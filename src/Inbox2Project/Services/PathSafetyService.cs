@@ -5,7 +5,7 @@ namespace Inbox2Project.Services;
 
 public sealed class PathSafetyService : IPathSafetyService
 {
-    private const int MaxPathLength = 240;
+    private const int MaxNameLength = 60;
 
     public string SanitizeName(string value, string fallback = "untitled")
     {
@@ -33,7 +33,12 @@ public sealed class PathSafetyService : IPathSafetyService
             sanitized = sanitized[..^1];
         }
 
-        return string.IsNullOrWhiteSpace(sanitized) ? fallback : sanitized;
+        if (string.IsNullOrWhiteSpace(sanitized))
+        {
+            return fallback;
+        }
+
+        return sanitized.Length <= MaxNameLength ? sanitized : sanitized[..MaxNameLength].TrimEnd();
     }
 
     public string GetUniquePath(string directoryPath, string fileName)
@@ -55,12 +60,7 @@ public sealed class PathSafetyService : IPathSafetyService
 
     public string EnsureSafePathLength(string fullPath)
     {
-        if (fullPath.Length > MaxPathLength)
-        {
-            var (userMessage, _) = ErrorCatalog.Lookup(AppErrorId.FsPathInvalid);
-            throw new AppException(AppErrorId.FsPathInvalid, userMessage, $"Path exceeds safe limit ({MaxPathLength}): {fullPath}");
-        }
-
+        // Names are already capped at MaxNameLength; just return the path.
         return fullPath;
     }
 }

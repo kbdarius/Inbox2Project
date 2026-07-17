@@ -24,6 +24,7 @@ internal sealed class ProjectSelectorForm : Form
     private readonly Label _selectedPathLabel;
     private readonly TextBox _projectNameTextBox;
     private readonly TextBox _parentFolderTextBox;
+    private readonly Label _addStatusLabel;
 
     public ProjectSelectorForm(
         ISettingsService settingsService,
@@ -35,8 +36,8 @@ internal sealed class ProjectSelectorForm : Form
         _projects = BuildProjectOptions(projectPaths, settings.SavedProjects);
 
         Text = "Inbox2Project - Select Project";
-        Width = 620;
-        Height = 340;
+        Width = 640;
+        Height = 380;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
@@ -67,31 +68,32 @@ internal sealed class ProjectSelectorForm : Form
             Height = 48,
         };
 
-        var useSelectedButton = new Button
+        var saveButton = new Button
         {
             Left = 380,
-            Top = 180,
+            Top = 200,
             Width = 180,
-            Height = 32,
-            Text = "Use Selected Project",
+            Height = 36,
+            Text = "Save to Selected Project",
+            Font = new System.Drawing.Font(Font, System.Drawing.FontStyle.Bold),
         };
-        useSelectedButton.Click += (_, _) => ConfirmSelection();
+        saveButton.Click += (_, _) => ConfirmSelection();
 
         var useDefaultButton = new Button
         {
             Left = 20,
-            Top = 180,
-            Width = 180,
-            Height = 32,
-            Text = "Use Default",
+            Top = 200,
+            Width = 160,
+            Height = 36,
+            Text = "Save to Default",
         };
         useDefaultButton.Click += (_, _) => UseDefaultProject();
 
-        selectTab.Controls.Add(new Label { Left = 20, Top = 12, Width = 200, Text = "Project" });
+        selectTab.Controls.Add(new Label { Left = 20, Top = 12, Width = 200, Text = "Select project to save into:" });
         selectTab.Controls.Add(_projectCombo);
-        selectTab.Controls.Add(new Label { Left = 20, Top = 132, Width = 320, Text = "If you close this window or select nothing, the default project is used." });
         selectTab.Controls.Add(_selectedPathLabel);
-        selectTab.Controls.Add(useSelectedButton);
+        selectTab.Controls.Add(new Label { Left = 20, Top = 162, Width = 540, Height = 32, Text = "Tip: add a new project on the Add Project tab first, then return here to select it." });
+        selectTab.Controls.Add(saveButton);
         selectTab.Controls.Add(useDefaultButton);
 
         _projectNameTextBox = new TextBox
@@ -111,19 +113,29 @@ internal sealed class ProjectSelectorForm : Form
         var addButton = new Button
         {
             Left = 380,
-            Top = 180,
+            Top = 200,
             Width = 180,
-            Height = 32,
+            Height = 36,
             Text = "Add Project",
         };
         addButton.Click += async (_, _) => await AddProjectAsync();
 
+        _addStatusLabel = new Label
+        {
+            Left = 20,
+            Top = 244,
+            Width = 540,
+            Height = 32,
+            ForeColor = System.Drawing.Color.DarkGreen,
+        };
+
         addTab.Controls.Add(new Label { Left = 20, Top = 12, Width = 200, Text = "Project Name" });
         addTab.Controls.Add(_projectNameTextBox);
-        addTab.Controls.Add(new Label { Left = 20, Top = 80, Width = 260, Text = "Parent Folder To Save This Project Under" });
+        addTab.Controls.Add(new Label { Left = 20, Top = 80, Width = 260, Text = "Parent Folder (must already exist)" });
         addTab.Controls.Add(_parentFolderTextBox);
-        addTab.Controls.Add(new Label { Left = 20, Top = 132, Width = 540, Text = "Paste an existing folder path here. The project will not be added unless that folder already exists." });
+        addTab.Controls.Add(new Label { Left = 20, Top = 132, Width = 540, Text = "Paste an existing folder path. The project folder will be created inside it." });
         addTab.Controls.Add(addButton);
+        addTab.Controls.Add(_addStatusLabel);
 
         _tabs.Controls.Add(selectTab);
         _tabs.Controls.Add(addTab);
@@ -207,21 +219,27 @@ internal sealed class ProjectSelectorForm : Form
 
     private async Task AddProjectAsync()
     {
+        _addStatusLabel.Text = string.Empty;
+        _addStatusLabel.ForeColor = System.Drawing.Color.DarkGreen;
+
         if (string.IsNullOrWhiteSpace(_projectNameTextBox.Text))
         {
-            MessageBox.Show("Enter a project name.", "Inbox2Project", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            _addStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
+            _addStatusLabel.Text = "Enter a project name.";
             return;
         }
 
         if (string.IsNullOrWhiteSpace(_parentFolderTextBox.Text))
         {
-            MessageBox.Show("Choose where the project should be saved.", "Inbox2Project", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            _addStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
+            _addStatusLabel.Text = "Paste a parent folder path.";
             return;
         }
 
         if (!Directory.Exists(_parentFolderTextBox.Text))
         {
-            MessageBox.Show("That folder does not exist yet. Correct the path before adding the project.", "Inbox2Project", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            _addStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
+            _addStatusLabel.Text = "That folder does not exist. Correct the path and try again.";
             return;
         }
 
@@ -232,14 +250,13 @@ internal sealed class ProjectSelectorForm : Form
             _projects.Add(new ProjectOption(saved.Name, saved.ProjectPath));
             _projects.Sort((left, right) => StringComparer.OrdinalIgnoreCase.Compare(left.Name, right.Name));
             PopulateProjects(saved.ProjectPath);
-            SelectedProjectPath = saved.ProjectPath;
-            _tabs.SelectedIndex = 0;
-            DialogResult = DialogResult.OK;
-            Close();
+            _addStatusLabel.Text = $"\u2713 '{saved.Name}' added. Go to Select Project tab to use it.";
+            _projectNameTextBox.Clear();
         }
         catch (Exception exception)
         {
-            MessageBox.Show("Could not add project.\n\n" + exception.Message, "Inbox2Project", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            _addStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
+            _addStatusLabel.Text = "Could not add project: " + exception.Message;
         }
     }
 
