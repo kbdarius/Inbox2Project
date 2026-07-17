@@ -33,8 +33,20 @@ public sealed class ExportWorkflowService : IExportWorkflowService
         try
         {
             var settings = await _settingsService.LoadAsync(cancellationToken);
-            var projects = _projectDiscoveryService.DiscoverProjects(settings.ProjectsRoot);
+            var projects = _projectDiscoveryService.DiscoverProjects(settings.ProjectsRoot)
+                .Concat(settings.SavedProjects.Select(project => project.ProjectPath))
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
             var selectedProject = await _projectSelectorUi.SelectProjectAsync(projects, settings.LastSelectedProject, cancellationToken);
+            if (string.IsNullOrWhiteSpace(selectedProject) || !projects.Contains(selectedProject, StringComparer.OrdinalIgnoreCase))
+            {
+                selectedProject = !string.IsNullOrWhiteSpace(settings.LastSelectedProject) && projects.Contains(settings.LastSelectedProject, StringComparer.OrdinalIgnoreCase)
+                    ? settings.LastSelectedProject
+                    : projects[0];
+            }
+
             await _settingsService.SaveLastSelectedProjectAsync(selectedProject, cancellationToken);
 
             var emailsPath = Path.Combine(selectedProject, "EMAILS");

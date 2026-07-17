@@ -1,6 +1,7 @@
 ﻿using Inbox2Project.Core;
 using Inbox2Project.Models;
 using Inbox2Project.Outlook;
+using Inbox2Project.OutlookBridge;
 using Inbox2Project.Services;
 using MessageBox = System.Windows.Forms.MessageBox;
 using MessageBoxButtons = System.Windows.Forms.MessageBoxButtons;
@@ -14,13 +15,14 @@ try
 {
 	var selected = LoadSingleSelectionFromOutlook();
 
+	var settingsService = new SettingsService();
 	var loggingService = new JsonLinesLoggingService();
 	var handler = new SaveToInbox2ProjectCommandHandler(
 		new SelectionValidationService(),
 		new ExportWorkflowService(
-			new SettingsService(),
+			settingsService,
 			new ProjectDiscoveryService(),
-			new DefaultProjectSelectorUi(),
+			new BridgeProjectSelectorUi(settingsService),
 			new BridgeAttachmentPromptService(mode),
 			new PathSafetyService(),
 			loggingService),
