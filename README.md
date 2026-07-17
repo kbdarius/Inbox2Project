@@ -1,7 +1,7 @@
 # Inbox2Project
 Inbox2Project is a Windows desktop automation tool that runs from Outlook and lets a user right-click a selected email to export it into local project artifacts.
 
-## Current workflow goal (V1)
+## Current workflow behavior (V1)
 
 From Outlook, user selects one email and triggers `Save to Inbox2Project`.
 
@@ -11,8 +11,61 @@ From Outlook, user selects one email and triggers `Save to Inbox2Project`.
   - If user declines: save only the `.txt` file (no folder creation).
   - If user confirms: create a sanitized subject-named folder and save both `.txt` and attachments into it.
 
-## Phase 0 baseline
+## Phase documents
 
-Design baseline artifact for Phase 0 is available at:
+- Phase 0 baseline: `docs/phase-0-design-baseline.md`
+- Phase 1 implementation plan: `docs/phase-1-implementation-plan.md`
+- Phase 1 acceptance evidence: `docs/phase-1-acceptance-evidence.md`
 
-- `docs/phase-0-design-baseline.md`
+## Repository layout
+
+- `src/Inbox2Project` - core command, validation, workflow, settings, discovery, path safety, logging.
+- `src/Inbox2Project.DevHarness` - runnable harness for validating the 3 required export paths.
+
+## Build and run
+
+### Prerequisites
+
+- Windows 10/11
+- .NET SDK 8.0+
+
+### Build
+
+```powershell
+dotnet build Inbox2Project.sln
+```
+
+### Run validation harness
+
+```powershell
+dotnet run --project src/Inbox2Project.DevHarness -- no-attachments
+dotnet run --project src/Inbox2Project.DevHarness -- attachments-no
+dotnet run --project src/Inbox2Project.DevHarness -- attachments-yes
+```
+
+## Settings file
+
+Path:
+
+`%AppData%\\Inbox2Project\\settings.json`
+
+Example:
+
+```json
+{
+  "ProjectsRoot": "C:\\Users\\<user>\\AppData\\Roaming\\Inbox2Project\\Projects",
+  "LastSelectedProject": "C:\\Users\\<user>\\AppData\\Roaming\\Inbox2Project\\Projects\\SampleProject"
+}
+```
+
+Rules:
+- `ProjectsRoot` is required.
+- `LastSelectedProject` is optional.
+
+## Phase 1 test matrix
+
+| Scenario | Input mode | Expected output | Expected folder behavior |
+|---|---|---|---|
+| No attachments | `no-attachments` | One `.txt` file under `EMAILS` | No folder creation |
+| Attachments + user No | `attachments-no` | One `.txt` file under `EMAILS` | No folder creation |
+| Attachments + user Yes | `attachments-yes` | One subject folder with `.txt` + attachments | Folder is created |
