@@ -116,7 +116,7 @@ internal sealed class ProjectSelectorForm : Form
             Height = 32,
             Text = "Add Project",
         };
-        addButton.Click += (_, _) => AddProject();
+        addButton.Click += async (_, _) => await AddProjectAsync();
 
         addTab.Controls.Add(new Label { Left = 20, Top = 12, Width = 200, Text = "Project Name" });
         addTab.Controls.Add(_projectNameTextBox);
@@ -205,7 +205,7 @@ internal sealed class ProjectSelectorForm : Form
         Close();
     }
 
-    private void AddProject()
+    private async Task AddProjectAsync()
     {
         if (string.IsNullOrWhiteSpace(_projectNameTextBox.Text))
         {
@@ -227,7 +227,7 @@ internal sealed class ProjectSelectorForm : Form
 
         try
         {
-            var saved = _settingsService.AddProjectAsync(_projectNameTextBox.Text, _parentFolderTextBox.Text).GetAwaiter().GetResult();
+            var saved = await _settingsService.AddProjectAsync(_projectNameTextBox.Text, _parentFolderTextBox.Text);
             _projects.RemoveAll(project => string.Equals(project.Path, saved.ProjectPath, StringComparison.OrdinalIgnoreCase));
             _projects.Add(new ProjectOption(saved.Name, saved.ProjectPath));
             _projects.Sort((left, right) => StringComparer.OrdinalIgnoreCase.Compare(left.Name, right.Name));
