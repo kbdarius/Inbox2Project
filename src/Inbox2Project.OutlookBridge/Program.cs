@@ -2,8 +2,6 @@
 using Inbox2Project.Models;
 using Inbox2Project.Outlook;
 using Inbox2Project.Services;
-using Microsoft.Office.Interop.Outlook;
-using Application = Microsoft.Office.Interop.Outlook.Application;
 using MessageBox = System.Windows.Forms.MessageBox;
 using MessageBoxButtons = System.Windows.Forms.MessageBoxButtons;
 using MessageBoxIcon = System.Windows.Forms.MessageBoxIcon;
@@ -64,9 +62,13 @@ catch (System.Exception exception)
 
 static OutlookItemSelection LoadSingleSelectionFromOutlook()
 {
-	var app = new Application();
-	Explorer? explorer = null;
-	Selection? selection = null;
+	var appType = Type.GetTypeFromProgID("Outlook.Application")
+		?? throw new InvalidOperationException("Outlook COM automation is not available on this machine.");
+	dynamic app = Activator.CreateInstance(appType)
+		?? throw new InvalidOperationException("Could not start Outlook COM automation.");
+	object? explorer = null;
+	object? selection = null;
+	object? item = null;
 
 	try
 	{
@@ -76,43 +78,53 @@ static OutlookItemSelection LoadSingleSelectionFromOutlook()
 			throw new InvalidOperationException("No active Outlook explorer was found.");
 		}
 
-		selection = explorer.Selection;
-		if (selection is null || selection.Count != 1)
+		dynamic explorerDyn = explorer;
+		selection = explorerDyn.Selection;
+		dynamic selectionDyn = selection ?? throw new InvalidOperationException("Could not access Outlook selection.");
+		if ((int)selectionDyn.Count != 1)
 		{
 			throw new InvalidOperationException("Select exactly one email in Outlook and retry.");
 		}
 
-		var item = selection[1];
-		if (item is not MailItem mail)
+		item = selectionDyn[1];
+		dynamic mail = item;
+		const int mailItemClass = 43;
+		if ((int)mail.Class != mailItemClass)
 		{
 			throw new InvalidOperationException("Selected Outlook item is not a MailItem.");
 		}
 
 		var attachments = new List<AttachmentData>();
-		for (var i = 1; i <= mail.Attachments.Count; i++)
+		int attachmentCount = (int)mail.Attachments.Count;
+		for (var i = 1; i <= attachmentCount; i++)
 		{
-			var attachment = mail.Attachments[i];
-			var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString("N") + "-" + attachment.FileName);
+			dynamic attachment = mail.Attachments[i];
+			string fileName = attachment.FileName;
+			var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString("N") + "-" + fileName);
 			attachment.SaveAsFile(tempPath);
 			var content = File.ReadAllBytes(tempPath);
 			File.Delete(tempPath);
-			attachments.Add(new AttachmentData(attachment.FileName, content));
+			attachments.Add(new AttachmentData(fileName, content));
 		}
+
+		DateTime received = mail.ReceivedTime;
+		var receivedAt = received == DateTime.MinValue ? DateTimeOffset.Now : new DateTimeOffset(received);
 
 		return new OutlookItemSelection(
 			OutlookItemType.MailItem,
-			mail.Subject ?? string.Empty,
-			mail.SenderName ?? string.Empty,
-			new DateTimeOffset(mail.ReceivedTime == DateTime.MinValue ? DateTime.Now : mail.ReceivedTime),
-			mail.ConversationTopic ?? string.Empty,
-			mail.Body ?? string.Empty,
+			((string?)mail.Subject) ?? string.Empty,
+			((string?)mail.SenderName) ?? string.Empty,
+			receivedAt,
+			((string?)mail.ConversationTopic) ?? string.Empty,
+			((string?)mail.Body) ?? string.Empty,
 			attachments);
 	}
 	finally
 	{
-		if (selection is not null) System.Runtime.InteropServices.Marshal.ReleaseComObject(selection);
-		if (explorer is not null) System.Runtime.InteropServices.Marshal.ReleaseComObject(explorer);
-		System.Runtime.InteropServices.Marshal.ReleaseComObject(app);
+		if (item is not null) System.Runtime.InteropServices.Marshal.FinalReleaseComObject(item);
+		if (selection is not null) System.Runtime.InteropServices.Marshal.FinalReleaseComObject(selection);
+		if (explorer is not null) System.Runtime.InteropServices.Marshal.FinalReleaseComObject(explorer);
+		System.Runtime.InteropServices.Marshal.FinalReleaseComObject(app);
 	}
 }
 

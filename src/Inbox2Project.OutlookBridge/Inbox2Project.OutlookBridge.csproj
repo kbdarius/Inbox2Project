@@ -11,9 +11,4 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Microsoft.Office.Interop.Outlook" Version="15.0.4795.1001" />
-  </ItemGroup>
-
 </Project>
