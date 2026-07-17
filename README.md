@@ -43,6 +43,27 @@ dotnet run --project src/Inbox2Project.DevHarness -- attachments-no
 dotnet run --project src/Inbox2Project.DevHarness -- attachments-yes
 ```
 
+### Try from Outlook selection (bridge)
+
+You can run the bridge while Outlook is open and one email is selected.
+
+```powershell
+dotnet run --project src/Inbox2Project.OutlookBridge
+```
+
+Attachment decision modes:
+
+```powershell
+dotnet run --project src/Inbox2Project.OutlookBridge -- --include-attachments ask
+dotnet run --project src/Inbox2Project.OutlookBridge -- --include-attachments no
+dotnet run --project src/Inbox2Project.OutlookBridge -- --include-attachments yes
+```
+
+Notes:
+- This bridge reads selection from active Classic Outlook explorer window.
+- Select exactly one mail item before running.
+- This is a practical bridge for testing; full right-click add-in packaging is a separate integration step.
+
 ## Settings file
 
 Path:
