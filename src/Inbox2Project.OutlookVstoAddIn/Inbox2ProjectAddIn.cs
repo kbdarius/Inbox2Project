@@ -15,6 +15,7 @@ public sealed class Inbox2ProjectAddIn : IDTExtensibility2
     private const string ButtonTag = "Inbox2Project.SaveToInbox2Project";
     private Outlook.Application? _application;
     private Office.CommandBarButton? _button;
+    private bool _eventsSubscribed;
 
     public void OnConnection(object application, ext_ConnectMode connectMode, object addInInstance, ref Array custom)
     {
@@ -26,6 +27,8 @@ public sealed class Inbox2ProjectAddIn : IDTExtensibility2
         if (_application is not null)
         {
             _application.ItemContextMenuDisplay += OnItemContextMenuDisplay;
+            _application.ContextMenuClose += OnContextMenuClose;
+            _eventsSubscribed = true;
         }
     }
 
@@ -34,9 +37,14 @@ public sealed class Inbox2ProjectAddIn : IDTExtensibility2
         RemoveButton();
         if (_application is not null)
         {
-            _application.ItemContextMenuDisplay -= OnItemContextMenuDisplay;
+            if (_eventsSubscribed)
+            {
+                _application.ItemContextMenuDisplay -= OnItemContextMenuDisplay;
+                _application.ContextMenuClose -= OnContextMenuClose;
+            }
         }
 
+        _eventsSubscribed = false;
         _application = null;
     }
 
@@ -45,19 +53,27 @@ public sealed class Inbox2ProjectAddIn : IDTExtensibility2
 
     private void OnItemContextMenuDisplay(Office.CommandBar commandBar, Outlook.Selection selection)
     {
+        Office.CommandBarControls? controls = null;
+        Office.CommandBarControl? existingControl = null;
         try
         {
-            for (var index = 1; index <= commandBar.Controls.Count; index++)
+            ReleaseButton();
+            controls = commandBar.Controls;
+            for (var index = 1; index <= controls.Count; index++)
             {
-                var control = commandBar.Controls[index];
-                if (string.Equals(control.Tag, ButtonTag, StringComparison.Ordinal))
+                existingControl = controls[index];
+                if (string.Equals(existingControl.Tag, ButtonTag, StringComparison.Ordinal))
                 {
-                    _button = (Office.CommandBarButton)control;
+                    _button = (Office.CommandBarButton)existingControl;
+                    existingControl = null;
                     return;
                 }
+
+                ReleaseComObject(existingControl);
+                existingControl = null;
             }
 
-            _button = (Office.CommandBarButton)commandBar.Controls.Add(
+            _button = (Office.CommandBarButton)controls.Add(
                 Office.MsoControlType.msoControlButton,
                 Type.Missing,
                 Type.Missing,
@@ -70,8 +86,18 @@ public sealed class Inbox2ProjectAddIn : IDTExtensibility2
         }
         catch
         {
-            _button = null;
+            ReleaseComObject(existingControl);
+            ReleaseButton();
         }
+        finally
+        {
+            ReleaseComObject(controls);
+        }
+    }
+
+    private void OnContextMenuClose(Outlook.OlContextMenu contextMenu)
+    {
+        ReleaseButton();
     }
 
     private static void OnButtonClick(Office.CommandBarButton control, ref bool cancelDefault)
@@ -102,13 +128,32 @@ public sealed class Inbox2ProjectAddIn : IDTExtensibility2
     {
         try
         {
-            _button?.Delete(true);
+            if (_button is not null)
+            {
+                _button.Click -= OnButtonClick;
+                _button.Delete(true);
+            }
         }
         catch
         {
             // Outlook may already be shutting down.
         }
 
+        ReleaseButton();
+    }
+
+    private void ReleaseButton()
+    {
+        var button = _button;
         _button = null;
+        ReleaseComObject(button);
+    }
+
+    private static void ReleaseComObject(object? value)
+    {
+        if (value is not null && Marshal.IsComObject(value))
+        {
+            Marshal.FinalReleaseComObject(value);
+        }
     }
 }
