@@ -11,5 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Inbox2Project\Inbox2Project.csproj" />
     <ProjectReference Include="..\Inbox2Project.OutlookBridge\Inbox2Project.OutlookBridge.csproj" />
+    <PackageReference Include="MicrosoftOfficeCore" Version="15.0.0" />
+    <PackageReference Include="Microsoft.Office.Interop.Outlook" Version="15.0.4797.1004" />
   </ItemGroup>
 </Project>

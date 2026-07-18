@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using Inbox2Project.Outlook;
+using Office = Microsoft.Office.Core;
 
 namespace Inbox2Project.OutlookAddIn;
 
@@ -9,64 +10,60 @@ namespace Inbox2Project.OutlookAddIn;
 [Guid("0A6FD82C-4D15-49D4-ABDA-4C0E7BEF7E67")]
 public sealed class Inbox2ProjectAddIn : IDTExtensibility2
 {
-    private delegate void CommandBarButtonClickHandler(object control, ref bool cancelDefault);
-
     private const string ButtonTag = "Inbox2Project.SaveToInbox2Project";
-    private dynamic? _application;
-    private dynamic? _button;
+    private global::Microsoft.Office.Interop.Outlook.Application? _outlookApplication;
+    private Office.CommandBarButton? _button;
 
     public void OnConnection(object application, ExtensibilityConnectMode connectMode, object addInInstance, ref Array custom)
     {
-        _application = application;
+        _outlookApplication = (global::Microsoft.Office.Interop.Outlook.Application)application;
     }
 
     public void OnDisconnection(ExtensibilityDisconnectMode removeMode, ref Array custom)
     {
         RemoveContextMenuCommand();
-        _application = null;
+        if (_outlookApplication is not null)
+        {
+            _outlookApplication.ItemContextMenuDisplay -= OnItemContextMenuDisplay;
+        }
+
+        _outlookApplication = null;
     }
 
     public void OnAddInsUpdate(ref Array custom) { }
     public void OnStartupComplete(ref Array custom)
     {
-        TryAddContextMenuCommand();
+        if (_outlookApplication is not null)
+        {
+            _outlookApplication.ItemContextMenuDisplay += OnItemContextMenuDisplay;
+        }
     }
     public void OnBeginShutdown(ref Array custom) { }
 
-    private void TryAddContextMenuCommand()
+    private void OnItemContextMenuDisplay(Office.CommandBar commandBar, global::Microsoft.Office.Interop.Outlook.Selection selection)
     {
         try
         {
-            if (_application is null)
+            for (var index = 1; index <= commandBar.Controls.Count; index++)
             {
-                return;
-            }
-
-            dynamic explorer = _application.ActiveExplorer();
-            if (explorer is null)
-            {
-                return;
-            }
-
-            dynamic commandBars = explorer.CommandBars;
-            dynamic contextMenu = commandBars["Context Menu"];
-            dynamic controls = contextMenu.Controls;
-            var controlCount = (int)controls.Count;
-            for (var index = 1; index <= controlCount; index++)
-            {
-                dynamic control = controls[index];
+                var control = commandBar.Controls[index];
                 if (string.Equals((string)control.Tag, ButtonTag, StringComparison.Ordinal))
                 {
-                    _button = control;
+                    _button = (Office.CommandBarButton)control;
                     return;
                 }
             }
 
-            _button = controls.Add(1, Type.Missing, Type.Missing, Type.Missing, true);
+            _button = (Office.CommandBarButton)commandBar.Controls.Add(
+                Office.MsoControlType.msoControlButton,
+                Type.Missing,
+                Type.Missing,
+                Type.Missing,
+                true);
             _button.Caption = OutlookContextCommand.SaveCommandName;
             _button.Tag = ButtonTag;
             _button.BeginGroup = true;
-            _button.Click += (CommandBarButtonClickHandler)OnButtonClick;
+            _button.Click += OnButtonClick;
         }
         catch
         {
@@ -90,7 +87,7 @@ public sealed class Inbox2ProjectAddIn : IDTExtensibility2
         _button = null;
     }
 
-    private static void OnButtonClick(object control, ref bool cancelDefault)
+    private static void OnButtonClick(Office.CommandBarButton control, ref bool cancelDefault)
     {
         cancelDefault = true;
         var bridgePath = Path.Combine(AppContext.BaseDirectory, "Inbox2Project.OutlookBridge.exe");
