@@ -2,6 +2,7 @@ bin/
 obj/
 **/bin/
 **/obj/
+.outlook-addin-test/
 .vs/
 *.user
 *.suo
