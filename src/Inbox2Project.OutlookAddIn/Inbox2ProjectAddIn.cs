@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using Inbox2Project.Outlook;
-using Inbox2Project.Services;
 
 namespace Inbox2Project.OutlookAddIn;
 
@@ -19,7 +18,6 @@ public sealed class Inbox2ProjectAddIn : IDTExtensibility2
     public void OnConnection(object application, ExtensibilityConnectMode connectMode, object addInInstance, ref Array custom)
     {
         _application = application;
-        AddContextMenuCommand();
     }
 
     public void OnDisconnection(ExtensibilityDisconnectMode removeMode, ref Array custom)
@@ -29,32 +27,53 @@ public sealed class Inbox2ProjectAddIn : IDTExtensibility2
     }
 
     public void OnAddInsUpdate(ref Array custom) { }
-    public void OnStartupComplete(ref Array custom) { }
+    public void OnStartupComplete(ref Array custom)
+    {
+        TryAddContextMenuCommand();
+    }
     public void OnBeginShutdown(ref Array custom) { }
 
-    private void AddContextMenuCommand()
+    private void TryAddContextMenuCommand()
     {
-        if (_application is null)
+        try
         {
-            return;
-        }
-
-        dynamic commandBars = _application.ActiveExplorer().CommandBars;
-        dynamic contextMenu = commandBars["Context Menu"];
-        foreach (dynamic control in contextMenu.Controls)
-        {
-            if (string.Equals((string)control.Tag, ButtonTag, StringComparison.Ordinal))
+            if (_application is null)
             {
-                _button = control;
                 return;
             }
-        }
 
-        _button = contextMenu.Controls.Add(1, Type.Missing, Type.Missing, Type.Missing, true);
-        _button.Caption = OutlookContextCommand.SaveCommandName;
-        _button.Tag = ButtonTag;
-        _button.BeginGroup = true;
-        _button.Click += (CommandBarButtonClickHandler)OnButtonClick;
+            dynamic explorer = _application.ActiveExplorer();
+            if (explorer is null)
+            {
+                return;
+            }
+
+            dynamic commandBars = explorer.CommandBars;
+            dynamic contextMenu = commandBars["Context Menu"];
+            dynamic controls = contextMenu.Controls;
+            var controlCount = (int)controls.Count;
+            for (var index = 1; index <= controlCount; index++)
+            {
+                dynamic control = controls[index];
+                if (string.Equals((string)control.Tag, ButtonTag, StringComparison.Ordinal))
+                {
+                    _button = control;
+                    return;
+                }
+            }
+
+            _button = controls.Add(1, Type.Missing, Type.Missing, Type.Missing, true);
+            _button.Caption = OutlookContextCommand.SaveCommandName;
+            _button.Tag = ButtonTag;
+            _button.BeginGroup = true;
+            _button.Click += (CommandBarButtonClickHandler)OnButtonClick;
+        }
+        catch
+        {
+            // Outlook can expose no active explorer during startup. The add-in must
+            // fail closed instead of taking Outlook down with it.
+            _button = null;
+        }
     }
 
     private void RemoveContextMenuCommand()
