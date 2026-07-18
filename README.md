@@ -66,27 +66,28 @@ Notes:
 
 ### Install the Outlook right-click add-in
 
-The repository now includes a native COM add-in boundary for Classic Outlook. It adds
-`Save to Inbox2Project` to the Outlook explorer context menu and starts the published
-bridge from the same installation directory.
+The supported Classic Outlook integration is a .NET Framework 4.8 managed COM add-in.
+It adds `Save to Inbox2Project` to the email context menu and starts the published
+bridge from the same installation directory. The retired .NET 8 in-process COM host
+must not be installed because it can conflict with Outlook's in-process runtime.
 
 Publish both components into one directory:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\Publish-OutlookAddIn.ps1
+powershell -ExecutionPolicy Bypass -File .\Publish-OutlookVstoAddIn.ps1
 ```
 
-Install the current user's Outlook registration from that published directory:
+Install the add-in from an elevated 64-bit PowerShell window:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\src\Inbox2Project.OutlookAddIn\install-addin.ps1 -AddInDirectory <published-directory>
+powershell -ExecutionPolicy Bypass -File <published-directory>\Install-OutlookVstoAddIn.ps1 -AddInDirectory <published-directory>
 ```
 
 Restart Classic Outlook after installation. The add-in and Outlook must use compatible
 process bitness. Unregister the COM host before removing the directory:
 
 ```powershell
-regsvr32.exe /u <published-directory>\Inbox2Project.OutlookAddIn.comhost.dll
+regasm.exe /unregister <published-directory>\Inbox2Project.OutlookVstoAddIn.dll
 ```
 
 The Outlook add-in registration is per-user under `HKCU`, but COM host registration

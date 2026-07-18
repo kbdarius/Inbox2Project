@@ -88,13 +88,12 @@ Phase 1 is complete when:
 
 ## Follow-on native Outlook integration
 
-Phase 1's command entrypoint is now exposed through a loadable Classic Outlook COM
-add-in project at `src/Inbox2Project.OutlookAddIn`. The add-in registers a context-menu
-command and launches the co-located published bridge, which continues to own selection
-reading and the validated export workflow. `Publish-OutlookAddIn.ps1` produces the
-co-located deployment directory and `install-addin.ps1` registers it for the current
-user.
+The supported Classic Outlook integration is the .NET Framework 4.8 managed COM add-in
+at `src/Inbox2Project.OutlookVstoAddIn`. It implements the official
+`IDTExtensibility2` contract, subscribes to Outlook's item context-menu event, and
+launches the co-located published bridge. `Publish-OutlookVstoAddIn.ps1` and
+`Install-OutlookVstoAddIn.ps1` produce and register the deployment directory.
 
-Outlook restart and target-machine testing remain required before calling packaging
-production-ready. In particular, validate the command in the installed Classic Outlook
-bitness and verify that the bridge executable is present beside the COM host.
+The earlier .NET 8 in-process COM host was retired after Outlook reported a native
+`coreclr.dll` module-version crash. It is no longer part of the solution or supported
+installation path.
