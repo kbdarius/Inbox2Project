@@ -11,7 +11,10 @@ if (-not (Test-Path $dll) -or -not (Test-Path $comhost)) {
     throw "Build the Outlook add-in first. Expected DLL and comhost beside this script."
 }
 
-regsvr32.exe /s $comhost
+$regsvr = Start-Process -FilePath "$env:WINDIR\System32\regsvr32.exe" -ArgumentList @('/s', $comhost) -Wait -PassThru
+if ($regsvr.ExitCode -ne 0) {
+    throw "COM registration failed with exit code $($regsvr.ExitCode). Re-run this script from an elevated PowerShell window."
+}
 New-Item -Path $key -Force | Out-Null
 New-ItemProperty -Path $key -Name '(Default)' -Value 'Inbox2Project Outlook Add-in' -PropertyType String -Force | Out-Null
 New-ItemProperty -Path $key -Name 'Description' -Value 'Adds Save to Inbox2Project to Outlook context menus.' -PropertyType String -Force | Out-Null

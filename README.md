@@ -89,8 +89,9 @@ process bitness. Unregister the COM host before removing the directory:
 regsvr32.exe /u <published-directory>\Inbox2Project.OutlookAddIn.comhost.dll
 ```
 
-The add-in registration is per-user under `HKCU`; no administrator elevation is
-required. The bridge remains available for direct validation and troubleshooting.
+The Outlook add-in registration is per-user under `HKCU`, but COM host registration
+requires administrator elevation because `regsvr32` writes the Windows COM registry.
+The bridge remains available for direct validation and troubleshooting.
 
 ## Settings file
 
