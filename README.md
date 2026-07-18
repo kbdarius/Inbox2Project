@@ -64,6 +64,34 @@ Notes:
 - Select exactly one mail item before running.
 - This is a practical bridge for testing; full right-click add-in packaging is a separate integration step.
 
+### Install the Outlook right-click add-in
+
+The repository now includes a native COM add-in boundary for Classic Outlook. It adds
+`Save to Inbox2Project` to the Outlook explorer context menu and starts the published
+bridge from the same installation directory.
+
+Publish both components into one directory:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\Publish-OutlookAddIn.ps1
+```
+
+Install the current user's Outlook registration from that published directory:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\src\Inbox2Project.OutlookAddIn\install-addin.ps1 -AddInDirectory <published-directory>
+```
+
+Restart Classic Outlook after installation. The add-in and Outlook must use compatible
+process bitness. Unregister the COM host before removing the directory:
+
+```powershell
+regsvr32.exe /u <published-directory>\Inbox2Project.OutlookAddIn.comhost.dll
+```
+
+The add-in registration is per-user under `HKCU`; no administrator elevation is
+required. The bridge remains available for direct validation and troubleshooting.
+
 ## Settings file
 
 Path:

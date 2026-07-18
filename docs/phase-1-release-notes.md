@@ -13,6 +13,15 @@ This release delivers the Outlook command workflow baseline and end-to-end local
 - user choice for attachments when present,
 - folder creation only when attachments are present and user confirms export.
 
+## Native Outlook integration follow-up
+
+The repository now also contains a Classic Outlook COM add-in boundary in
+`src/Inbox2Project.OutlookAddIn`. It adds `Save to Inbox2Project` to the explorer context
+menu and launches the co-located bridge executable. Use `Publish-OutlookAddIn.ps1` to
+create the deployment directory, then run its copied `install-addin.ps1` and restart
+Outlook. Production packaging and target-machine Outlook validation are still follow-up
+work.
+
 ## Delivered Scope
 
 1. Outlook context command and handler entrypoint.

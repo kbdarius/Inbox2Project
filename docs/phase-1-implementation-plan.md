@@ -85,3 +85,16 @@ Phase 1 is complete when:
 1. All 12 tasks are implemented in code/docs.
 2. Main workflow supports and logs all three functional paths.
 3. Acceptance evidence confirms each Phase 0 acceptance criterion.
+
+## Follow-on native Outlook integration
+
+Phase 1's command entrypoint is now exposed through a loadable Classic Outlook COM
+add-in project at `src/Inbox2Project.OutlookAddIn`. The add-in registers a context-menu
+command and launches the co-located published bridge, which continues to own selection
+reading and the validated export workflow. `Publish-OutlookAddIn.ps1` produces the
+co-located deployment directory and `install-addin.ps1` registers it for the current
+user.
+
+Outlook restart and target-machine testing remain required before calling packaging
+production-ready. In particular, validate the command in the installed Classic Outlook
+bitness and verify that the bridge executable is present beside the COM host.
