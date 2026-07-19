@@ -22,11 +22,6 @@ public sealed class BridgeProjectSelectorUi : IProjectSelectorUi
             return form.SelectedProjectPath!;
         }
 
-        if (!string.IsNullOrWhiteSpace(suggestedProjectPath) && projectPaths.Contains(suggestedProjectPath, StringComparer.OrdinalIgnoreCase))
-        {
-            return suggestedProjectPath;
-        }
-
-        return projectPaths[0];
+        return string.Empty;
     }
 }

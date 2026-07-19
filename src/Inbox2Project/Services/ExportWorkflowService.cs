@@ -33,35 +33,35 @@ public sealed class ExportWorkflowService : IExportWorkflowService
         try
         {
             var settings = await _settingsService.LoadAsync(cancellationToken);
-            var projects = _projectDiscoveryService.DiscoverProjects(settings.ProjectsRoot)
-                .Concat(settings.SavedProjects.Select(project => project.ProjectPath))
+            var projects = settings.SavedProjects.Select(project => project.ProjectPath)
                 .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Where(Directory.Exists)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             var selectedProject = await _projectSelectorUi.SelectProjectAsync(projects, settings.LastSelectedProject, cancellationToken);
-            if (string.IsNullOrWhiteSpace(selectedProject) || !projects.Contains(selectedProject, StringComparer.OrdinalIgnoreCase))
+            if (string.IsNullOrWhiteSpace(selectedProject))
             {
-                selectedProject = !string.IsNullOrWhiteSpace(settings.LastSelectedProject) && projects.Contains(settings.LastSelectedProject, StringComparer.OrdinalIgnoreCase)
-                    ? settings.LastSelectedProject
-                    : projects[0];
+                return OperationResult.Cancel();
             }
 
-            await _settingsService.SaveLastSelectedProjectAsync(selectedProject, cancellationToken);
+            if (!Directory.Exists(selectedProject))
+            {
+                throw new DirectoryNotFoundException("The selected destination folder no longer exists.");
+            }
 
-            var emailsPath = Path.Combine(selectedProject, "EMAILS");
-            Directory.CreateDirectory(emailsPath);
+            var destinationPath = selectedProject;
 
             var sanitizedSubject = _pathSafetyService.SanitizeName(item.Subject);
             var attachmentCount = item.Attachments.Count;
             var hasAttachments = attachmentCount > 0;
 
-            var includeAttachments = false;
+            var attachmentChoice = new AttachmentSaveChoice(false, true, Array.Empty<AttachmentData>());
             if (hasAttachments)
             {
                 try
                 {
-                    includeAttachments = await _attachmentPromptService.ShouldIncludeAttachmentsAsync(item, cancellationToken);
+                    attachmentChoice = await _attachmentPromptService.SelectAttachmentsAsync(item, cancellationToken);
                 }
                 catch (Exception promptException)
                 {
@@ -70,26 +70,35 @@ public sealed class ExportWorkflowService : IExportWorkflowService
                 }
             }
 
-            var outputDir = emailsPath;
-            if (hasAttachments && includeAttachments)
+            if (attachmentChoice.Cancelled)
+            {
+                return OperationResult.Cancel();
+            }
+
+            var selectedAttachments = attachmentChoice.Attachments;
+            var outputDir = destinationPath;
+            if (selectedAttachments.Count > 0)
             {
                 var folderName = _pathSafetyService.SanitizeName(sanitizedSubject);
-                var candidateFolder = _pathSafetyService.GetUniquePath(emailsPath, folderName);
+                var candidateFolder = _pathSafetyService.GetUniquePath(destinationPath, folderName);
                 outputDir = _pathSafetyService.EnsureSafePathLength(candidateFolder);
                 Directory.CreateDirectory(outputDir);
             }
 
-            var txtFileName = _pathSafetyService.SanitizeName(sanitizedSubject) + ".txt";
-            var txtPath = _pathSafetyService.GetUniquePath(outputDir, txtFileName);
-            txtPath = _pathSafetyService.EnsureSafePathLength(txtPath);
-
-            var txtPayload = BuildTextPayload(item);
-            await File.WriteAllTextAsync(txtPath, txtPayload, Encoding.UTF8, cancellationToken);
-
-            var outputs = new List<string> { txtPath };
-            if (hasAttachments && includeAttachments)
+            var outputs = new List<string>();
+            string? txtPath = null;
+            if (attachmentChoice.IncludeEmail)
             {
-                foreach (var attachment in item.Attachments)
+                var txtFileName = _pathSafetyService.SanitizeName(sanitizedSubject) + ".txt";
+                txtPath = _pathSafetyService.GetUniquePath(outputDir, txtFileName);
+                txtPath = _pathSafetyService.EnsureSafePathLength(txtPath);
+                var txtPayload = BuildTextPayload(item);
+                await File.WriteAllTextAsync(txtPath, txtPayload, Encoding.UTF8, cancellationToken);
+                outputs.Add(txtPath);
+            }
+            if (selectedAttachments.Count > 0)
+            {
+                foreach (var attachment in selectedAttachments)
                 {
                     var safeName = _pathSafetyService.SanitizeName(attachment.FileName, "attachment.bin");
                     var attachmentPath = _pathSafetyService.GetUniquePath(outputDir, safeName);
@@ -112,23 +121,29 @@ public sealed class ExportWorkflowService : IExportWorkflowService
                 }
             }
 
+            // Persist only after the export succeeds, so "last used" always means
+            // the last project that actually received a saved email.
+            await _settingsService.SaveLastSelectedProjectAsync(selectedProject, cancellationToken);
+
             await _loggingService.LogInfoAsync(
                 "export_completed",
                 new
                 {
                     selectedProject,
-                    emailsPath,
+                    destinationPath,
                     txtPath,
                     hasAttachments,
-                    includeAttachments,
+                    selectedAttachmentCount = selectedAttachments.Count,
                     attachmentCount,
                     outputs,
                 },
                 cancellationToken);
 
-            var userMessage = hasAttachments && includeAttachments
-                ? "Saved email text and attachments successfully."
-                : "Saved email text successfully.";
+            var userMessage = attachmentChoice.IncludeEmail && selectedAttachments.Count > 0
+                ? $"Saved the email and {selectedAttachments.Count} selected attachment(s)."
+                : attachmentChoice.IncludeEmail
+                    ? "Saved email text successfully."
+                    : $"Saved {selectedAttachments.Count} selected attachment(s).";
 
             return OperationResult.Success(userMessage, outputs.ToArray());
         }

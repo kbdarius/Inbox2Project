@@ -4,5 +4,5 @@ namespace Inbox2Project.Services;
 
 public interface IAttachmentPromptService
 {
-    Task<bool> ShouldIncludeAttachmentsAsync(OutlookItemSelection item, CancellationToken cancellationToken = default);
+    Task<AttachmentSaveChoice> SelectAttachmentsAsync(OutlookItemSelection item, CancellationToken cancellationToken = default);
 }

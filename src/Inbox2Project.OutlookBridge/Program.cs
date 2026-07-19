@@ -14,6 +14,12 @@ internal static class Program
     [STAThread]
     public static async Task Main(string[] args)
     {
+        using var singleInstance = new Mutex(true, @"Local\Inbox2Project.OutlookBridge", out var isFirstInstance);
+        if (!isFirstInstance)
+        {
+            return;
+        }
+
         var mode = GetArgValue(args, "--include-attachments") ?? "ask";
 
         try
@@ -36,21 +42,23 @@ internal static class Program
             var command = new OutlookContextCommand(handler);
             var result = await command.ExecuteAsync(new[] { selected });
 
+            if (result.Cancelled)
+            {
+                Environment.ExitCode = 0;
+                return;
+            }
+
             if (result.Succeeded)
             {
-                MessageBox.Show(
-                    "Inbox2Project completed successfully.\n\n" + string.Join(Environment.NewLine, result.OutputPaths),
-                    "Inbox2Project",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information,
-                    MessageBoxDefaultButton.Button1);
+                using var completion = new CompletionForm(result.UserMessage, result.OutputPaths);
+                completion.ShowDialog();
                 Environment.ExitCode = 0;
                 return;
             }
 
             MessageBox.Show(
                 result.UserMessage + Environment.NewLine + Environment.NewLine + result.TechnicalMessage,
-                "Inbox2Project - Error",
+                AppInfo.WindowTitle("Error"),
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error,
                 MessageBoxDefaultButton.Button1);
@@ -60,7 +68,7 @@ internal static class Program
         {
             MessageBox.Show(
                 "Could not execute Inbox2Project from Outlook selection.\n\n" + exception,
-                "Inbox2Project - Outlook Bridge",
+                AppInfo.WindowTitle("Outlook Bridge Error"),
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error,
                 MessageBoxDefaultButton.Button1);
@@ -107,12 +115,19 @@ internal static class Program
             for (var i = 1; i <= attachmentCount; i++)
             {
                 dynamic attachment = mail.Attachments[i];
-                string fileName = attachment.FileName;
-                var tempPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + "-" + fileName);
-                attachment.SaveAsFile(tempPath);
-                var content = File.ReadAllBytes(tempPath);
-                File.Delete(tempPath);
-                attachments.Add(new AttachmentData(fileName, content));
+                try
+                {
+                    string fileName = attachment.FileName;
+                    var tempPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + "-" + fileName);
+                    attachment.SaveAsFile(tempPath);
+                    var content = File.ReadAllBytes(tempPath);
+                    File.Delete(tempPath);
+                    attachments.Add(new AttachmentData(fileName, content, IsInlineAttachment(attachment, fileName)));
+                }
+                finally
+                {
+                    System.Runtime.InteropServices.Marshal.FinalReleaseComObject(attachment);
+                }
             }
 
             DateTime received = mail.ReceivedTime;
@@ -156,6 +171,24 @@ internal static class Program
         return null;
     }
 
+    private static bool IsInlineAttachment(dynamic attachment, string fileName)
+    {
+        const string contentIdProperty = "http://schemas.microsoft.com/mapi/proptag/0x3712001F";
+        const string hiddenProperty = "http://schemas.microsoft.com/mapi/proptag/0x7FFE000B";
+        string contentId = string.Empty;
+        bool hidden = false;
+        int position = -1;
+        try { contentId = attachment.PropertyAccessor.GetProperty(contentIdProperty) as string ?? string.Empty; } catch { }
+        try { hidden = attachment.PropertyAccessor.GetProperty(hiddenProperty) is true; } catch { }
+        try { position = attachment.Position; } catch { }
+        var extension = Path.GetExtension(fileName);
+        var image = extension.Equals(".png", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".gif", StringComparison.OrdinalIgnoreCase);
+        return image && (hidden || !string.IsNullOrWhiteSpace(contentId) || position >= 0);
+    }
+
     private sealed class BridgeAttachmentPromptService : IAttachmentPromptService
     {
         private readonly string _mode;
@@ -165,26 +198,21 @@ internal static class Program
             _mode = mode;
         }
 
-        public Task<bool> ShouldIncludeAttachmentsAsync(OutlookItemSelection item, CancellationToken cancellationToken = default)
+        public Task<AttachmentSaveChoice> SelectAttachmentsAsync(OutlookItemSelection item, CancellationToken cancellationToken = default)
         {
             if (string.Equals(_mode, "yes", StringComparison.OrdinalIgnoreCase))
             {
-                return Task.FromResult(true);
+                return Task.FromResult(new AttachmentSaveChoice(false, true, item.Attachments));
             }
 
             if (string.Equals(_mode, "no", StringComparison.OrdinalIgnoreCase))
             {
-                return Task.FromResult(false);
+                return Task.FromResult(new AttachmentSaveChoice(false, true, Array.Empty<AttachmentData>()));
             }
 
-            var result = MessageBox.Show(
-                "Attachments were detected. Include attachments in export?",
-                "Inbox2Project",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Question,
-                MessageBoxDefaultButton.Button2);
-
-            return Task.FromResult(result == DialogResult.Yes);
+            using var form = new AttachmentSelectionForm(item.Attachments);
+            var result = form.ShowDialog();
+            return Task.FromResult(result == DialogResult.OK ? form.Choice : new AttachmentSaveChoice(true, false, Array.Empty<AttachmentData>()));
         }
     }
 }

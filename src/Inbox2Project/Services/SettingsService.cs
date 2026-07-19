@@ -10,7 +10,6 @@ public sealed class SettingsService : ISettingsService
     private readonly string _appRoot;
     private readonly string _settingsPath;
     private readonly string _defaultProjectsRoot;
-    private readonly string _defaultProjectPath;
 
     public SettingsService(string? appDataPath = null)
     {
@@ -18,7 +17,6 @@ public sealed class SettingsService : ISettingsService
         _appRoot = Path.Combine(appData, "Inbox2Project");
         _settingsPath = Path.Combine(_appRoot, "settings.json");
         _defaultProjectsRoot = Path.Combine(_appRoot, "Projects");
-        _defaultProjectPath = Path.Combine(_defaultProjectsRoot, "Default");
     }
 
     public async Task<SettingsModel> LoadAsync(CancellationToken cancellationToken = default)
@@ -51,28 +49,24 @@ public sealed class SettingsService : ISettingsService
         await SaveAsync(model, cancellationToken);
     }
 
-    public async Task<SavedProjectDefinition> AddProjectAsync(string projectName, string parentFolderPath, CancellationToken cancellationToken = default)
+    public async Task<SavedProjectDefinition> AddProjectAsync(string projectName, string projectFolderPath, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(projectName))
+        if (string.IsNullOrWhiteSpace(projectFolderPath))
         {
-            throw new ArgumentException("Project name is required.", nameof(projectName));
+            throw new ArgumentException("Project folder path is required.", nameof(projectFolderPath));
         }
 
-        if (string.IsNullOrWhiteSpace(parentFolderPath))
+        var projectPath = Path.GetFullPath(projectFolderPath.Trim());
+        if (!Directory.Exists(projectPath))
         {
-            throw new ArgumentException("Parent folder path is required.", nameof(parentFolderPath));
+            throw new DirectoryNotFoundException("The project folder does not exist.");
         }
-
-        Directory.CreateDirectory(parentFolderPath);
 
         var model = await LoadAsync(cancellationToken);
-        var normalizedName = projectName.Trim();
-        var projectPath = Path.Combine(parentFolderPath, normalizedName);
-        Directory.CreateDirectory(Path.Combine(projectPath, "EMAILS"));
+        var normalizedName = GetProjectName(projectName, projectPath);
 
         var existing = model.SavedProjects.FirstOrDefault(saved =>
-            string.Equals(saved.ProjectPath, projectPath, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(saved.Name, normalizedName, StringComparison.OrdinalIgnoreCase));
+            string.Equals(saved.ProjectPath, projectPath, StringComparison.OrdinalIgnoreCase));
 
         if (existing is null)
         {
@@ -95,19 +89,13 @@ public sealed class SettingsService : ISettingsService
             return;
         }
 
-        // Default project is protected from removal.
-        if (string.Equals(Path.GetFullPath(projectPath), Path.GetFullPath(_defaultProjectPath), StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
         var model = await LoadAsync(cancellationToken);
         model.SavedProjects.RemoveAll(saved =>
             string.Equals(saved.ProjectPath, projectPath, StringComparison.OrdinalIgnoreCase));
 
         if (string.Equals(model.LastSelectedProject, projectPath, StringComparison.OrdinalIgnoreCase))
         {
-            model.LastSelectedProject = _defaultProjectPath;
+            model.LastSelectedProject = null;
         }
 
         await SaveAsync(model, cancellationToken);
@@ -115,11 +103,11 @@ public sealed class SettingsService : ISettingsService
 
     private SettingsModel CreateDefaultSettings()
     {
-        Directory.CreateDirectory(Path.Combine(_defaultProjectPath, "EMAILS"));
+        Directory.CreateDirectory(_defaultProjectsRoot);
         return new SettingsModel
         {
             ProjectsRoot = _defaultProjectsRoot,
-            LastSelectedProject = _defaultProjectPath,
+            LastSelectedProject = null,
             SavedProjects = new List<SavedProjectDefinition>(),
         };
     }
@@ -132,21 +120,59 @@ public sealed class SettingsService : ISettingsService
         }
 
         Directory.CreateDirectory(settings.ProjectsRoot);
-        Directory.CreateDirectory(Path.Combine(_defaultProjectPath, "EMAILS"));
-
         settings.SavedProjects ??= new List<SavedProjectDefinition>();
         settings.SavedProjects = settings.SavedProjects
             .Where(project => !string.IsNullOrWhiteSpace(project.Name) && !string.IsNullOrWhiteSpace(project.ProjectPath))
+            .Where(project => !IsBuiltInSample(project))
             .GroupBy(project => project.ProjectPath, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
             .ToList();
 
-        if (string.IsNullOrWhiteSpace(settings.LastSelectedProject) || !Directory.Exists(Path.Combine(settings.LastSelectedProject, "EMAILS")))
+        if (string.IsNullOrWhiteSpace(settings.LastSelectedProject)
+            || !settings.SavedProjects.Any(project => string.Equals(project.ProjectPath, settings.LastSelectedProject, StringComparison.OrdinalIgnoreCase)))
         {
-            settings.LastSelectedProject = _defaultProjectPath;
+            settings.LastSelectedProject = null;
         }
 
         return settings;
+    }
+
+    public async Task<SavedProjectDefinition> EditProjectAsync(string originalProjectPath, string projectName, string projectFolderPath, CancellationToken cancellationToken = default)
+    {
+        var projectPath = Path.GetFullPath(projectFolderPath.Trim());
+        if (!Directory.Exists(projectPath)) throw new DirectoryNotFoundException("The project folder does not exist.");
+
+        var model = await LoadAsync(cancellationToken);
+        var project = model.SavedProjects.FirstOrDefault(saved => string.Equals(saved.ProjectPath, originalProjectPath, StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException("The project is no longer in the saved list.");
+        project.Name = GetProjectName(projectName, projectPath);
+        project.ProjectPath = projectPath;
+        if (string.Equals(model.LastSelectedProject, originalProjectPath, StringComparison.OrdinalIgnoreCase)) model.LastSelectedProject = projectPath;
+        await SaveAsync(model, cancellationToken);
+        return project;
+    }
+
+    private static bool IsBuiltInSample(SavedProjectDefinition project)
+    {
+        var folderName = Path.GetFileName(project.ProjectPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        return string.Equals(project.Name, "Default", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(project.Name, "SampleProject", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(folderName, "Default", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(folderName, "SampleProject", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetProjectName(string? nickname, string projectPath)
+    {
+        if (!string.IsNullOrWhiteSpace(nickname)) return nickname.Trim();
+        var directory = new DirectoryInfo(projectPath);
+        if ((directory.Name.Equals("EMAIL", StringComparison.OrdinalIgnoreCase)
+                || directory.Name.Equals("EMAILS", StringComparison.OrdinalIgnoreCase))
+            && directory.Parent is not null)
+        {
+            return directory.Parent.Name;
+        }
+
+        return directory.Name;
     }
 
     private async Task SaveAsync(SettingsModel model, CancellationToken cancellationToken)

@@ -11,6 +11,9 @@ public sealed class DefaultAttachmentPromptService : IAttachmentPromptService
         _defaultDecision = defaultDecision;
     }
 
-    public Task<bool> ShouldIncludeAttachmentsAsync(OutlookItemSelection item, CancellationToken cancellationToken = default)
-        => Task.FromResult(_defaultDecision);
+    public Task<AttachmentSaveChoice> SelectAttachmentsAsync(OutlookItemSelection item, CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<AttachmentData> selected = _defaultDecision ? item.Attachments : Array.Empty<AttachmentData>();
+        return Task.FromResult(new AttachmentSaveChoice(false, true, selected));
+    }
 }

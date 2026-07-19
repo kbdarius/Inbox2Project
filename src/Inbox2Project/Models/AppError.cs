@@ -36,7 +36,7 @@ public static class ErrorCatalog
     {
         AppErrorId.CfgRootMissing => ("Projects root is not configured.", "Open settings and select your Projects Root folder."),
         AppErrorId.CfgRootInvalid => ("Projects root path is invalid or unavailable.", "Verify the folder exists and you have access permissions."),
-        AppErrorId.PrjNoneFound => ("No valid projects were found.", "Ensure project folders contain an EMAILS subfolder, then refresh."),
+        AppErrorId.PrjNoneFound => ("No valid projects were found.", "Add an existing destination folder, then retry."),
         AppErrorId.SelUnsupported => ("Selected item is not a supported email.", "Select a single email item and retry."),
         AppErrorId.SelEmpty => ("No email is selected.", "Select one email and run the command again."),
         AppErrorId.TxtExportFailed => ("Email text could not be saved.", "Check destination access and retry."),
