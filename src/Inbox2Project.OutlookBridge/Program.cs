@@ -25,6 +25,8 @@ internal static class Program
         try
         {
             var selected = LoadSingleSelectionFromOutlook();
+            using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            var aiFolderNameService = new OllamaFolderNameService(httpClient);
 
             var settingsService = new SettingsService();
             var loggingService = new JsonLinesLoggingService();
@@ -33,9 +35,10 @@ internal static class Program
                 new ExportWorkflowService(
                     settingsService,
                     new ProjectDiscoveryService(),
-                    new BridgeProjectSelectorUi(settingsService),
+                    new BridgeProjectSelectorUi(settingsService, aiFolderNameService),
                     new BridgeAttachmentPromptService(mode),
                     new PathSafetyService(),
+                    aiFolderNameService,
                     loggingService),
                 loggingService);
 

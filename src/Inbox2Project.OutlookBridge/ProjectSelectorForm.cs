@@ -1,8 +1,10 @@
 using Inbox2Project.Models;
 using Inbox2Project.Services;
 using Button = System.Windows.Forms.Button;
+using CheckBox = System.Windows.Forms.CheckBox;
 using ComboBox = System.Windows.Forms.ComboBox;
 using DialogResult = System.Windows.Forms.DialogResult;
+using LinkLabel = System.Windows.Forms.LinkLabel;
 using Form = System.Windows.Forms.Form;
 using Label = System.Windows.Forms.Label;
 using ListBox = System.Windows.Forms.ListBox;
@@ -20,10 +22,14 @@ internal sealed class ProjectSelectorForm : Form
     private readonly ISettingsService _settingsService;
     private readonly List<ProjectOption> _projects;
     private readonly TabControl _tabs;
+    private readonly IAiFolderNameService _aiFolderNameService;
 
     private readonly ComboBox _projectCombo;
     private readonly Label _selectedPathLabel;
     private readonly Button _saveButton;
+    private readonly CheckBox _useLocalAiCheck;
+    private readonly Label _aiStatusLabel;
+    private readonly LinkLabel _aiSetupLink;
     private readonly TextBox _projectNameTextBox;
     private readonly TextBox _parentFolderTextBox;
     private readonly Button _addButton;
@@ -36,9 +42,11 @@ internal sealed class ProjectSelectorForm : Form
         ISettingsService settingsService,
         IReadOnlyList<string> projectPaths,
         SettingsModel settings,
-        string? suggestedProjectPath)
+        string? suggestedProjectPath,
+        IAiFolderNameService aiFolderNameService)
     {
         _settingsService = settingsService;
+        _aiFolderNameService = aiFolderNameService;
         _projects = BuildProjectOptions(projectPaths, settings.SavedProjects, settings.LastSelectedProject);
 
         Text = AppInfo.WindowTitle("Select Project");
@@ -72,7 +80,7 @@ internal sealed class ProjectSelectorForm : Form
         _selectedPathLabel = new Label
         {
             Left = 20,
-            Top = 76,
+            Top = 184,
             Width = 540,
             Height = 48,
         };
@@ -80,7 +88,7 @@ internal sealed class ProjectSelectorForm : Form
         _saveButton = new Button
         {
             Left = 380,
-            Top = 200,
+            Top = 250,
             Width = 180,
             Height = 36,
             Text = "Save to Selected Project",
@@ -88,10 +96,50 @@ internal sealed class ProjectSelectorForm : Form
         };
         _saveButton.Click += (_, _) => ConfirmSelection();
 
+        _useLocalAiCheck = new CheckBox
+        {
+            Left = 20,
+            Top = 96,
+            Width = 540,
+            Text = "Use local AI folder naming (Ollama + phi3-small)",
+            Checked = settings.UseLocalAiFolderNaming,
+        };
+        _useLocalAiCheck.CheckedChanged += async (_, _) => await UpdateAiOptionAsync();
+
+        _aiStatusLabel = new Label
+        {
+            Left = 20,
+            Top = 122,
+            Width = 540,
+            Height = 44,
+            Text = "Checking AI setup...",
+        };
+
+        _aiSetupLink = new LinkLabel
+        {
+            Left = 20,
+            Top = 168,
+            Width = 540,
+            Height = 28,
+            Text = $"Download Ollama for Windows (includes phi3-small setup): {_aiFolderNameService.DownloadUrl}",
+            Visible = false,
+        };
+        _aiSetupLink.Links.Add(0, _aiSetupLink.Text.Length, _aiFolderNameService.DownloadUrl);
+        _aiSetupLink.LinkClicked += (_, args) =>
+        {
+            if (args.Link?.LinkData is string uri && System.Uri.TryCreate(uri, System.UriKind.Absolute, out var url))
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url.ToString()) { UseShellExecute = true });
+            }
+        };
+
         selectTab.Controls.Add(new Label { Left = 20, Top = 12, Width = 200, Text = "Select project to save into:" });
         selectTab.Controls.Add(_projectCombo);
+        selectTab.Controls.Add(_useLocalAiCheck);
+        selectTab.Controls.Add(_aiStatusLabel);
+        selectTab.Controls.Add(_aiSetupLink);
         selectTab.Controls.Add(_selectedPathLabel);
-        selectTab.Controls.Add(new Label { Left = 20, Top = 162, Width = 540, Height = 32, Text = "Tip: add a new project on the Add Project tab first, then return here to select it." });
+        selectTab.Controls.Add(new Label { Left = 20, Top = 198, Width = 540, Height = 32, Text = "Tip: add a new project on the Add Project tab first, then return here to select it." });
         selectTab.Controls.Add(_saveButton);
 
         _parentFolderTextBox = new TextBox
@@ -195,6 +243,7 @@ internal sealed class ProjectSelectorForm : Form
         PopulateProjects(suggestedProjectPath);
         PopulateRemoveList(settings.SavedProjects);
         UpdateAddButtonState();
+        Load += async (_, _) => await UpdateAiStatusAsync();
     }
 
     public string? SelectedProjectPath { get; private set; }
@@ -240,6 +289,44 @@ internal sealed class ProjectSelectorForm : Form
         var selected = _projects.FindIndex(project => string.Equals(project.Path, suggestedProjectPath, StringComparison.OrdinalIgnoreCase));
         _projectCombo.SelectedIndex = selected >= 0 ? selected : 0;
         UpdatePathLabel();
+    }
+
+    private async Task UpdateAiStatusAsync()
+    {
+        var setupState = await _aiFolderNameService.GetSetupStateAsync();
+        if (!_useLocalAiCheck.Checked)
+        {
+            _aiStatusLabel.ForeColor = System.Drawing.Color.DimGray;
+            _aiStatusLabel.Text = "AI naming is disabled.";
+            _aiSetupLink.Visible = false;
+            return;
+        }
+
+        if (!setupState.IsServerAvailable)
+        {
+            _aiStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
+            _aiStatusLabel.Text = "Ollama is not running. Start it to enable local AI naming.";
+            _aiSetupLink.Visible = true;
+            return;
+        }
+
+        if (!setupState.IsModelAvailable)
+        {
+            _aiStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
+            _aiStatusLabel.Text = $"Ollama is running, but '{_aiFolderNameService.ModelName}' is not installed.";
+            _aiSetupLink.Visible = true;
+            return;
+        }
+
+        _aiStatusLabel.ForeColor = System.Drawing.Color.DarkGreen;
+        _aiStatusLabel.Text = $"AI naming ready using {_aiFolderNameService.ModelName}.";
+        _aiSetupLink.Visible = false;
+    }
+
+    private async Task UpdateAiOptionAsync()
+    {
+        await _settingsService.SaveUseLocalAiFolderNamingAsync(_useLocalAiCheck.Checked);
+        await UpdateAiStatusAsync();
     }
 
     private void UpdatePathLabel()

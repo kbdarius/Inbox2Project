@@ -8,6 +8,8 @@ public interface ISettingsService
 
     Task SaveLastSelectedProjectAsync(string projectPath, CancellationToken cancellationToken = default);
 
+    Task SaveUseLocalAiFolderNamingAsync(bool useLocalAiFolderNaming, CancellationToken cancellationToken = default);
+
     Task<SavedProjectDefinition> AddProjectAsync(string projectName, string projectFolderPath, CancellationToken cancellationToken = default);
 
     Task<SavedProjectDefinition> EditProjectAsync(string originalProjectPath, string projectName, string projectFolderPath, CancellationToken cancellationToken = default);

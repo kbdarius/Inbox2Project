@@ -49,6 +49,13 @@ public sealed class SettingsService : ISettingsService
         await SaveAsync(model, cancellationToken);
     }
 
+    public async Task SaveUseLocalAiFolderNamingAsync(bool useLocalAiFolderNaming, CancellationToken cancellationToken = default)
+    {
+        var model = await LoadAsync(cancellationToken);
+        model.UseLocalAiFolderNaming = useLocalAiFolderNaming;
+        await SaveAsync(model, cancellationToken);
+    }
+
     public async Task<SavedProjectDefinition> AddProjectAsync(string projectName, string projectFolderPath, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(projectFolderPath))

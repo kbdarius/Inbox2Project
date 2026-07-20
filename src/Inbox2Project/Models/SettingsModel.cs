@@ -7,6 +7,8 @@ public sealed class SettingsModel
 	public string? LastSelectedProject { get; set; }
 
 	public List<SavedProjectDefinition> SavedProjects { get; set; } = new();
+
+    public bool UseLocalAiFolderNaming { get; set; }
 }
 
 public sealed class SavedProjectDefinition
