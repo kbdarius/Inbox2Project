@@ -10,6 +10,7 @@ public sealed class ExportWorkflowService : IExportWorkflowService
     private readonly IProjectSelectorUi _projectSelectorUi;
     private readonly IAttachmentPromptService _attachmentPromptService;
     private readonly IPathSafetyService _pathSafetyService;
+    private readonly IAiFolderNameService _aiFolderNameService;
     private readonly ILoggingService _loggingService;
 
     public ExportWorkflowService(
@@ -18,6 +19,7 @@ public sealed class ExportWorkflowService : IExportWorkflowService
         IProjectSelectorUi projectSelectorUi,
         IAttachmentPromptService attachmentPromptService,
         IPathSafetyService pathSafetyService,
+        IAiFolderNameService? aiFolderNameService,
         ILoggingService loggingService)
     {
         _settingsService = settingsService;
@@ -25,6 +27,7 @@ public sealed class ExportWorkflowService : IExportWorkflowService
         _projectSelectorUi = projectSelectorUi;
         _attachmentPromptService = attachmentPromptService;
         _pathSafetyService = pathSafetyService;
+        _aiFolderNameService = aiFolderNameService ?? new NoOpAiFolderNameService();
         _loggingService = loggingService;
     }
 
@@ -53,6 +56,10 @@ public sealed class ExportWorkflowService : IExportWorkflowService
             var destinationPath = selectedProject;
 
             var sanitizedSubject = _pathSafetyService.SanitizeName(item.Subject);
+            var aiSubject = await TryGetAiNameAsync(settings, item, cancellationToken);
+            var baseName = _pathSafetyService.SanitizeName(string.IsNullOrWhiteSpace(aiSubject) ? sanitizedSubject : aiSubject);
+            var datePrefix = $"{item.ReceivedAt:yyyyMMdd}_";
+            var prefixedBaseName = $"{datePrefix}{baseName}";
             var attachmentCount = item.Attachments.Count;
             var hasAttachments = attachmentCount > 0;
 
@@ -79,7 +86,7 @@ public sealed class ExportWorkflowService : IExportWorkflowService
             var outputDir = destinationPath;
             if (selectedAttachments.Count > 0)
             {
-                var folderName = _pathSafetyService.SanitizeName(sanitizedSubject);
+                var folderName = prefixedBaseName;
                 var candidateFolder = _pathSafetyService.GetUniquePath(destinationPath, folderName);
                 outputDir = _pathSafetyService.EnsureSafePathLength(candidateFolder);
                 Directory.CreateDirectory(outputDir);
@@ -89,7 +96,7 @@ public sealed class ExportWorkflowService : IExportWorkflowService
             string? txtPath = null;
             if (attachmentChoice.IncludeEmail)
             {
-                var txtFileName = _pathSafetyService.SanitizeName(sanitizedSubject) + ".txt";
+                var txtFileName = $"{prefixedBaseName}.txt";
                 txtPath = _pathSafetyService.GetUniquePath(outputDir, txtFileName);
                 txtPath = _pathSafetyService.EnsureSafePathLength(txtPath);
                 var txtPayload = BuildTextPayload(item);
@@ -136,6 +143,8 @@ public sealed class ExportWorkflowService : IExportWorkflowService
                     selectedAttachmentCount = selectedAttachments.Count,
                     attachmentCount,
                     outputs,
+                    usedAiName = aiSubject is not null,
+                    aiModelAvailable = settings.UseLocalAiFolderNaming,
                 },
                 cancellationToken);
 
@@ -183,6 +192,16 @@ public sealed class ExportWorkflowService : IExportWorkflowService
             separator,
             item.BodyText ?? string.Empty,
             string.Empty);
+    }
+
+    private async Task<string?> TryGetAiNameAsync(SettingsModel settings, OutlookItemSelection item, CancellationToken cancellationToken)
+    {
+        if (!settings.UseLocalAiFolderNaming)
+        {
+            return null;
+        }
+
+        return await _aiFolderNameService.SuggestFolderNameAsync(item.Subject, item.BodyText ?? string.Empty, cancellationToken);
     }
 
     private async Task<OperationResult> HandleFailureAsync(

@@ -26,6 +26,7 @@ var handler = new SaveToInbox2ProjectCommandHandler(
 		new DefaultProjectSelectorUi(),
 		new DefaultAttachmentPromptService(includeAttachments),
 		new PathSafetyService(),
+		new NoOpAiFolderNameService(),
 		loggingService),
 	loggingService);
 
