@@ -16,6 +16,7 @@ From Outlook, user selects one email and triggers `Save to Inbox2Project`.
 - Phase 0 baseline: `docs/phase-0-design-baseline.md`
 - Phase 1 implementation plan: `docs/phase-1-implementation-plan.md`
 - Phase 1 acceptance evidence: `docs/phase-1-acceptance-evidence.md`
+- Another-PC installation runbook: `docs/setup-another-windows-pc.md`
 
 ## Repository layout
 
@@ -91,7 +92,7 @@ regasm.exe /unregister <published-directory>\Inbox2Project.OutlookVstoAddIn.dll
 ```
 
 The Outlook add-in registration is per-user under `HKCU`, but COM host registration
-requires administrator elevation because `regsvr32` writes the Windows COM registry.
+requires administrator elevation because .NET Framework `RegAsm.exe` writes the Windows COM registry.
 The bridge remains available for direct validation and troubleshooting.
 
 ## Settings file
@@ -105,7 +106,13 @@ Example:
 ```json
 {
   "ProjectsRoot": "C:\\Users\\<user>\\AppData\\Roaming\\Inbox2Project\\Projects",
-  "LastSelectedProject": "C:\\Users\\<user>\\AppData\\Roaming\\Inbox2Project\\Projects\\SampleProject"
+  "LastSelectedProject": "D:\\Projects\\ExampleProject",
+  "SavedProjects": [
+    {
+      "Name": "Example Project",
+      "ProjectPath": "D:\\Projects\\ExampleProject"
+    }
+  ]
 }
 ```
 
