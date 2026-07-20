@@ -101,7 +101,7 @@ internal sealed class ProjectSelectorForm : Form
             Left = 20,
             Top = 96,
             Width = 540,
-            Text = "Use local AI folder naming (Ollama + phi3-small)",
+            Text = "Use local AI folder naming (Ollama)",
             Checked = settings.UseLocalAiFolderNaming,
         };
         _useLocalAiCheck.CheckedChanged += async (_, _) => await UpdateAiOptionAsync();
@@ -121,7 +121,7 @@ internal sealed class ProjectSelectorForm : Form
             Top = 168,
             Width = 540,
             Height = 28,
-            Text = $"Download Ollama for Windows (includes phi3-small setup): {_aiFolderNameService.DownloadUrl}",
+            Text = $"Install Ollama or view model setup guide: {_aiFolderNameService.DownloadUrl}",
             Visible = false,
         };
         _aiSetupLink.Links.Add(0, _aiSetupLink.Text.Length, _aiFolderNameService.DownloadUrl);
@@ -294,6 +294,9 @@ internal sealed class ProjectSelectorForm : Form
     private async Task UpdateAiStatusAsync()
     {
         var setupState = await _aiFolderNameService.GetSetupStateAsync();
+        _aiSetupLink.Text = $"Install/Setup local AI: {setupState.SetupUrl}";
+        _aiSetupLink.Links.Clear();
+        _aiSetupLink.Links.Add(0, _aiSetupLink.Text.Length, setupState.SetupUrl);
         if (!_useLocalAiCheck.Checked)
         {
             _aiStatusLabel.ForeColor = System.Drawing.Color.DimGray;
@@ -302,10 +305,18 @@ internal sealed class ProjectSelectorForm : Form
             return;
         }
 
+        if (!setupState.IsOllamaInstalled)
+        {
+            _aiStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
+            _aiStatusLabel.Text = "Ollama is not installed on this PC. Click the setup link to install it.";
+            _aiSetupLink.Visible = true;
+            return;
+        }
+
         if (!setupState.IsServerAvailable)
         {
             _aiStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
-            _aiStatusLabel.Text = "Ollama is not running. Start it to enable local AI naming.";
+            _aiStatusLabel.Text = "Ollama is installed but not running. Start Ollama to enable local AI naming.";
             _aiSetupLink.Visible = true;
             return;
         }
@@ -313,13 +324,16 @@ internal sealed class ProjectSelectorForm : Form
         if (!setupState.IsModelAvailable)
         {
             _aiStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
-            _aiStatusLabel.Text = $"Ollama is running, but '{_aiFolderNameService.ModelName}' is not installed.";
+            var detected = setupState.InstalledModelNames.Count > 0
+                ? $"Detected models: {string.Join(", ", setupState.InstalledModelNames.Take(3))}."
+                : "No models were detected.";
+            _aiStatusLabel.Text = $"Ollama is running, but no compatible model is available. {detected}";
             _aiSetupLink.Visible = true;
             return;
         }
 
         _aiStatusLabel.ForeColor = System.Drawing.Color.DarkGreen;
-        _aiStatusLabel.Text = $"AI naming ready using {_aiFolderNameService.ModelName}.";
+        _aiStatusLabel.Text = $"AI naming ready using {setupState.SelectedModelName ?? _aiFolderNameService.ModelName}.";
         _aiSetupLink.Visible = false;
     }
 

@@ -2,7 +2,13 @@ using Inbox2Project.Models;
 
 namespace Inbox2Project.Services;
 
-public sealed record OllamaSetupState(bool IsServerAvailable, bool IsModelAvailable);
+public sealed record OllamaSetupState(
+    bool IsOllamaInstalled,
+    bool IsServerAvailable,
+    bool IsModelAvailable,
+    string? SelectedModelName,
+    IReadOnlyList<string> InstalledModelNames,
+    string SetupUrl);
 
 public interface IAiFolderNameService
 {

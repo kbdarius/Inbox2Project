@@ -106,12 +106,16 @@ internal static class Program
             }
 
             item = selectionDyn[1];
-            dynamic mail = item;
             const int mailItemClass = 43;
-            if ((int)mail.Class != mailItemClass)
+            var itemClass = TryGetInt32Property(item, "Class");
+            var messageClass = TryGetStringProperty(item, "MessageClass") ?? string.Empty;
+            var isMailLike = itemClass == mailItemClass || messageClass.StartsWith("IPM.Note", StringComparison.OrdinalIgnoreCase);
+            if (!isMailLike)
             {
-                throw new InvalidOperationException("Selected Outlook item is not a MailItem.");
+                throw new InvalidOperationException($"Selected Outlook item is not a supported mail item. Class={itemClass?.ToString() ?? "unknown"}, MessageClass={messageClass}.");
             }
+
+            dynamic mail = item;
 
             var attachments = new List<AttachmentData>();
             int attachmentCount = (int)mail.Attachments.Count;
@@ -138,11 +142,11 @@ internal static class Program
 
             return new OutlookItemSelection(
                 OutlookItemType.MailItem,
-                ((string?)mail.Subject) ?? string.Empty,
-                ((string?)mail.SenderName) ?? string.Empty,
+                TryGetStringProperty(mail, "Subject") ?? string.Empty,
+                TryGetStringProperty(mail, "SenderName") ?? string.Empty,
                 receivedAt,
-                ((string?)mail.ConversationTopic) ?? string.Empty,
-                ((string?)mail.Body) ?? string.Empty,
+                TryGetStringProperty(mail, "ConversationTopic") ?? string.Empty,
+                TryGetStringProperty(mail, "Body") ?? string.Empty,
                 attachments);
         }
         finally
@@ -151,6 +155,42 @@ internal static class Program
             if (selection is not null) System.Runtime.InteropServices.Marshal.FinalReleaseComObject(selection);
             if (explorer is not null) System.Runtime.InteropServices.Marshal.FinalReleaseComObject(explorer);
             System.Runtime.InteropServices.Marshal.FinalReleaseComObject(app);
+        }
+    }
+
+    private static int? TryGetInt32Property(object source, string propertyName)
+    {
+        try
+        {
+            var value = source.GetType().InvokeMember(
+                propertyName,
+                System.Reflection.BindingFlags.GetProperty,
+                null,
+                source,
+                Array.Empty<object>());
+            return Convert.ToInt32(value);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string? TryGetStringProperty(object source, string propertyName)
+    {
+        try
+        {
+            var value = source.GetType().InvokeMember(
+                propertyName,
+                System.Reflection.BindingFlags.GetProperty,
+                null,
+                source,
+                Array.Empty<object>());
+            return value as string ?? Convert.ToString(value);
+        }
+        catch
+        {
+            return null;
         }
     }
 
