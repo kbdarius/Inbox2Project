@@ -24,7 +24,7 @@ internal static class Program
 
         try
         {
-            var selected = LoadSingleSelectionFromOutlook();
+            using var mailExporter = LoadSingleSelectionFromOutlook(out var selected);
             using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
             var aiFolderNameService = new OllamaFolderNameService(httpClient);
 
@@ -39,7 +39,8 @@ internal static class Program
                     new BridgeAttachmentPromptService(mode),
                     new PathSafetyService(),
                     aiFolderNameService,
-                    loggingService),
+                    loggingService,
+                    new BridgeDuplicateSubjectPromptService()),
                 loggingService);
 
             var command = new OutlookContextCommand(handler);
@@ -79,14 +80,14 @@ internal static class Program
         }
     }
 
-    private static OutlookItemSelection LoadSingleSelectionFromOutlook()
+    private static OutlookMailExporter LoadSingleSelectionFromOutlook(out OutlookItemSelection selection)
     {
         var appType = Type.GetTypeFromProgID("Outlook.Application")
             ?? throw new InvalidOperationException("Outlook COM automation is not available on this machine.");
         dynamic app = Activator.CreateInstance(appType)
             ?? throw new InvalidOperationException("Could not start Outlook COM automation.");
         object? explorer = null;
-        object? selection = null;
+        object? itemSelection = null;
         object? item = null;
 
         try
@@ -98,8 +99,8 @@ internal static class Program
             }
 
             dynamic explorerDyn = explorer;
-            selection = explorerDyn.Selection;
-            dynamic selectionDyn = selection ?? throw new InvalidOperationException("Could not access Outlook selection.");
+            itemSelection = explorerDyn.Selection;
+            dynamic selectionDyn = itemSelection ?? throw new InvalidOperationException("Could not access Outlook selection.");
             if ((int)selectionDyn.Count != 1)
             {
                 throw new InvalidOperationException("Select exactly one email in Outlook and retry.");
@@ -140,21 +141,61 @@ internal static class Program
             DateTime received = mail.ReceivedTime;
             var receivedAt = received == DateTime.MinValue ? DateTimeOffset.Now : new DateTimeOffset(received);
 
-            return new OutlookItemSelection(
+            var exporter = new OutlookMailExporter((object)mail);
+            item = null;
+
+            // The overall constructor call below is dynamically bound (several arguments are
+            // derived from the dynamic `mail` object), and a bare method group can't be passed
+            // as an argument to a dynamically dispatched call (CS1976) - so materialize the
+            // delegate into a plain, statically-typed local first.
+            Action<string> saveAsMsg = exporter.SaveAsMsg;
+
+            selection = new OutlookItemSelection(
                 OutlookItemType.MailItem,
                 TryGetStringProperty(mail, "Subject") ?? string.Empty,
                 TryGetStringProperty(mail, "SenderName") ?? string.Empty,
                 receivedAt,
                 TryGetStringProperty(mail, "ConversationTopic") ?? string.Empty,
                 TryGetStringProperty(mail, "Body") ?? string.Empty,
-                attachments);
+                attachments,
+                saveAsMsg);
+            return exporter;
         }
         finally
         {
             if (item is not null) System.Runtime.InteropServices.Marshal.FinalReleaseComObject(item);
-            if (selection is not null) System.Runtime.InteropServices.Marshal.FinalReleaseComObject(selection);
+            if (itemSelection is not null) System.Runtime.InteropServices.Marshal.FinalReleaseComObject(itemSelection);
             if (explorer is not null) System.Runtime.InteropServices.Marshal.FinalReleaseComObject(explorer);
             System.Runtime.InteropServices.Marshal.FinalReleaseComObject(app);
+        }
+    }
+
+    private sealed class OutlookMailExporter : IDisposable
+    {
+        private readonly object _mail;
+        private bool _disposed;
+
+        public OutlookMailExporter(object mail)
+        {
+            _mail = mail;
+        }
+
+        public void SaveAsMsg(string path)
+        {
+            const int olMsgUnicode = 9;
+            dynamic mail = _mail;
+            mail.SaveAs(path, olMsgUnicode);
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            System.Runtime.InteropServices.Marshal.FinalReleaseComObject(_mail);
         }
     }
 
@@ -256,6 +297,17 @@ internal static class Program
             using var form = new AttachmentSelectionForm(item.Attachments);
             var result = form.ShowDialog();
             return Task.FromResult(result == DialogResult.OK ? form.Choice : new AttachmentSaveChoice(true, false, Array.Empty<AttachmentData>()));
+        }
+    }
+
+    private sealed class BridgeDuplicateSubjectPromptService : IDuplicateSubjectPromptService
+    {
+        public Task<DuplicateSubjectDecision> ResolveAsync(string existingItemName, string subject, CancellationToken cancellationToken = default)
+        {
+            using var form = new DuplicateSubjectPromptForm(existingItemName, subject);
+            var result = form.ShowDialog();
+            var decision = result == DialogResult.OK ? form.Decision : DuplicateSubjectDecision.Cancel;
+            return Task.FromResult(decision);
         }
     }
 }

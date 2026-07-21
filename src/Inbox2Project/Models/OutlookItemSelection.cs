@@ -14,7 +14,8 @@ public sealed record OutlookItemSelection(
     DateTimeOffset ReceivedAt,
     string ConversationTopic,
     string BodyText,
-    IReadOnlyList<AttachmentData> Attachments);
+    IReadOnlyList<AttachmentData> Attachments,
+    Action<string>? SaveAsOutlookMessage = null);
 
 public sealed record AttachmentData(string FileName, byte[] Content, bool IsInline = false)
 {

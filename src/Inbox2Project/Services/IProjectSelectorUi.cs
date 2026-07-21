@@ -1,6 +1,14 @@
 namespace Inbox2Project.Services;
 
+public sealed record ProjectSelectionResult(string ProjectPath, string FinalBaseName, bool SaveEmailAsMsg = false);
+
 public interface IProjectSelectorUi
 {
-    Task<string> SelectProjectAsync(IReadOnlyList<string> projectPaths, string? suggestedProjectPath, CancellationToken cancellationToken = default);
+    Task<ProjectSelectionResult?> SelectProjectAsync(
+        IReadOnlyList<string> projectPaths,
+        string? suggestedProjectPath,
+        string suggestedBaseName,
+        string senderName,
+    DateTimeOffset receivedAt,
+        CancellationToken cancellationToken = default);
 }

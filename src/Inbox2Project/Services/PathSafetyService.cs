@@ -9,7 +9,7 @@ public sealed class PathSafetyService : IPathSafetyService
     private const int MaxNameLength = 60;
     private static readonly Regex PrefixCleaner = new(@"^\s*(?:(?:re|fw|fwd)\s*:?\s*)+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex MultiDelimiterRegex = new(@"[\\/\|:*?\" + "\"" + @"<>[\]{}()]+", RegexOptions.Compiled);
-    private static readonly Regex WordSeparatorRegex = new(@"\s+", RegexOptions.Compiled);
+    private static readonly Regex WordSeparatorRegex = new(@"[\s-]+", RegexOptions.Compiled);
 
     public string SanitizeName(string value, string fallback = "untitled")
     {

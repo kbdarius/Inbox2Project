@@ -11,6 +11,8 @@ using ListBox = System.Windows.Forms.ListBox;
 using MessageBox = System.Windows.Forms.MessageBox;
 using MessageBoxButtons = System.Windows.Forms.MessageBoxButtons;
 using MessageBoxIcon = System.Windows.Forms.MessageBoxIcon;
+using OpenFileDialog = System.Windows.Forms.OpenFileDialog;
+using SaveFileDialog = System.Windows.Forms.SaveFileDialog;
 using TabControl = System.Windows.Forms.TabControl;
 using TabPage = System.Windows.Forms.TabPage;
 using TextBox = System.Windows.Forms.TextBox;
@@ -20,6 +22,7 @@ namespace Inbox2Project.OutlookBridge;
 internal sealed class ProjectSelectorForm : Form
 {
     private readonly ISettingsService _settingsService;
+    private readonly IPathSafetyService _pathSafetyService;
     private readonly List<ProjectOption> _projects;
     private readonly TabControl _tabs;
     private readonly IAiFolderNameService _aiFolderNameService;
@@ -27,9 +30,16 @@ internal sealed class ProjectSelectorForm : Form
     private readonly ComboBox _projectCombo;
     private readonly Label _selectedPathLabel;
     private readonly Button _saveButton;
+    private readonly TextBox _finalNameTextBox;
+    private readonly CheckBox _includeSenderCheck;
+    private readonly string _baseSuggestedName;
+    private readonly string _senderName;
+    private readonly DateTimeOffset _receivedAt;
     private readonly CheckBox _useLocalAiCheck;
     private readonly Label _aiStatusLabel;
     private readonly LinkLabel _aiSetupLink;
+    private readonly CheckBox _saveAsMsgCheck;
+    private readonly Label _finalNamePreviewLabel;
     private readonly TextBox _projectNameTextBox;
     private readonly TextBox _parentFolderTextBox;
     private readonly Button _addButton;
@@ -37,21 +47,30 @@ internal sealed class ProjectSelectorForm : Form
     private readonly ListBox _removeListBox;
     private readonly Label _removeStatusLabel;
     private string? _editingProjectPath;
+    private bool _suppressFinalNameUpdate;
 
     public ProjectSelectorForm(
         ISettingsService settingsService,
+        IPathSafetyService pathSafetyService,
         IReadOnlyList<string> projectPaths,
         SettingsModel settings,
         string? suggestedProjectPath,
+        string suggestedBaseName,
+        string senderName,
+        DateTimeOffset receivedAt,
         IAiFolderNameService aiFolderNameService)
     {
         _settingsService = settingsService;
+        _pathSafetyService = pathSafetyService;
         _aiFolderNameService = aiFolderNameService;
+        _baseSuggestedName = suggestedBaseName ?? string.Empty;
+        _senderName = senderName ?? string.Empty;
+        _receivedAt = receivedAt;
         _projects = BuildProjectOptions(projectPaths, settings.SavedProjects, settings.LastSelectedProject);
 
         Text = AppInfo.WindowTitle("Select Project");
         Width = 640;
-        Height = 380;
+        Height = 540;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
@@ -80,15 +99,15 @@ internal sealed class ProjectSelectorForm : Form
         _selectedPathLabel = new Label
         {
             Left = 20,
-            Top = 184,
+            Top = 296,
             Width = 540,
-            Height = 48,
+            Height = 32,
         };
 
         _saveButton = new Button
         {
             Left = 380,
-            Top = 250,
+            Top = 392,
             Width = 180,
             Height = 36,
             Text = "Save to Selected Project",
@@ -96,10 +115,40 @@ internal sealed class ProjectSelectorForm : Form
         };
         _saveButton.Click += (_, _) => ConfirmSelection();
 
+        _finalNameTextBox = new TextBox
+        {
+            Left = 20,
+            Top = 80,
+            Width = 540,
+            Text = _baseSuggestedName,
+        };
+        _finalNameTextBox.TextChanged += (_, _) => NormalizeAndPreviewFinalName();
+
+        _finalNamePreviewLabel = new Label
+        {
+            Left = 20,
+            Top = 106,
+            Width = 540,
+            Height = 22,
+            ForeColor = System.Drawing.Color.DimGray,
+            Text = string.Empty,
+        };
+
+        _includeSenderCheck = new CheckBox
+        {
+            Left = 20,
+            Top = 132,
+            Width = 540,
+            Text = "Include sender name in file name (sender_subject)",
+            Enabled = !string.IsNullOrWhiteSpace(_senderName),
+            Checked = !string.IsNullOrWhiteSpace(_senderName),
+        };
+        _includeSenderCheck.CheckedChanged += (_, _) => ApplySenderNameToggle();
+
         _useLocalAiCheck = new CheckBox
         {
             Left = 20,
-            Top = 96,
+            Top = 160,
             Width = 540,
             Text = "Use local AI folder naming (Ollama)",
             Checked = settings.UseLocalAiFolderNaming,
@@ -109,7 +158,7 @@ internal sealed class ProjectSelectorForm : Form
         _aiStatusLabel = new Label
         {
             Left = 20,
-            Top = 122,
+            Top = 186,
             Width = 540,
             Height = 44,
             Text = "Checking AI setup...",
@@ -118,7 +167,7 @@ internal sealed class ProjectSelectorForm : Form
         _aiSetupLink = new LinkLabel
         {
             Left = 20,
-            Top = 168,
+            Top = 232,
             Width = 540,
             Height = 28,
             Text = $"Install Ollama or view model setup guide: {_aiFolderNameService.DownloadUrl}",
@@ -133,13 +182,28 @@ internal sealed class ProjectSelectorForm : Form
             }
         };
 
+        _saveAsMsgCheck = new CheckBox
+        {
+            Left = 20,
+            Top = 266,
+            Width = 540,
+            Height = 24,
+            Text = "Save email as Outlook message (.msg) to preserve formatting, images, and tables",
+        };
+        _saveAsMsgCheck.CheckedChanged += (_, _) => UpdateFinalNamePreview();
+
         selectTab.Controls.Add(new Label { Left = 20, Top = 12, Width = 200, Text = "Select project to save into:" });
         selectTab.Controls.Add(_projectCombo);
+        selectTab.Controls.Add(new Label { Left = 20, Top = 60, Width = 300, Text = "Final file name (before date prefix, no extension):" });
+        selectTab.Controls.Add(_finalNameTextBox);
+        selectTab.Controls.Add(_finalNamePreviewLabel);
+        selectTab.Controls.Add(_includeSenderCheck);
         selectTab.Controls.Add(_useLocalAiCheck);
         selectTab.Controls.Add(_aiStatusLabel);
         selectTab.Controls.Add(_aiSetupLink);
+        selectTab.Controls.Add(_saveAsMsgCheck);
         selectTab.Controls.Add(_selectedPathLabel);
-        selectTab.Controls.Add(new Label { Left = 20, Top = 198, Width = 540, Height = 32, Text = "Tip: add a new project on the Add Project tab first, then return here to select it." });
+        selectTab.Controls.Add(new Label { Left = 20, Top = 366, Width = 540, Height = 32, Text = "Tip: add a new project on the Add Project tab first, then return here to select it." });
         selectTab.Controls.Add(_saveButton);
 
         _parentFolderTextBox = new TextBox
@@ -243,10 +307,16 @@ internal sealed class ProjectSelectorForm : Form
         PopulateProjects(suggestedProjectPath);
         PopulateRemoveList(settings.SavedProjects);
         UpdateAddButtonState();
+        ApplySenderNameToggle();
+        NormalizeAndPreviewFinalName();
         Load += async (_, _) => await UpdateAiStatusAsync();
     }
 
     public string? SelectedProjectPath { get; private set; }
+
+    public string? SelectedFinalName { get; private set; }
+
+    public bool SelectedSaveAsMsg { get; private set; }
 
     private static List<ProjectOption> BuildProjectOptions(
         IReadOnlyList<string> projectPaths,
@@ -356,6 +426,43 @@ internal sealed class ProjectSelectorForm : Form
         _saveButton.Enabled = Directory.Exists(option.Path);
     }
 
+    private void ApplySenderNameToggle()
+    {
+        if (string.IsNullOrWhiteSpace(_senderName))
+        {
+            UpdateFinalNamePreview();
+            return;
+        }
+
+        var senderToken = _pathSafetyService.SanitizeName(_senderName, "sender");
+        var current = _pathSafetyService.SanitizeName(_finalNameTextBox.Text, _baseSuggestedName);
+        var subjectPart = current;
+        var newPrefix = senderToken + "_";
+        var legacySuffix = "_-_" + senderToken;
+
+        if (subjectPart.StartsWith(newPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            subjectPart = subjectPart[newPrefix.Length..];
+        }
+        else if (subjectPart.EndsWith(legacySuffix, StringComparison.OrdinalIgnoreCase))
+        {
+            subjectPart = subjectPart[..^legacySuffix.Length];
+        }
+
+        if (_includeSenderCheck.Checked)
+        {
+            _finalNameTextBox.Text = string.IsNullOrWhiteSpace(subjectPart)
+                ? senderToken
+                : senderToken + "_" + subjectPart;
+        }
+        else
+        {
+            _finalNameTextBox.Text = subjectPart;
+        }
+
+        NormalizeAndPreviewFinalName();
+    }
+
     private void ConfirmSelection()
     {
         if (_projectCombo.SelectedItem is not ProjectOption option)
@@ -363,9 +470,47 @@ internal sealed class ProjectSelectorForm : Form
             return;
         }
 
+        var finalName = _pathSafetyService.SanitizeName(_finalNameTextBox.Text, _baseSuggestedName);
+        SelectedFinalName = string.IsNullOrWhiteSpace(finalName) ? _baseSuggestedName : finalName;
         SelectedProjectPath = option.Path;
+        SelectedSaveAsMsg = _saveAsMsgCheck.Checked;
         DialogResult = DialogResult.OK;
         Close();
+    }
+
+    private void NormalizeAndPreviewFinalName()
+    {
+        if (_suppressFinalNameUpdate)
+        {
+            return;
+        }
+
+        _suppressFinalNameUpdate = true;
+        try
+        {
+            var original = _finalNameTextBox.Text;
+            var normalized = _pathSafetyService.SanitizeName(original, _baseSuggestedName);
+            if (!string.Equals(original, normalized, StringComparison.Ordinal))
+            {
+                var caret = _finalNameTextBox.SelectionStart;
+                _finalNameTextBox.Text = normalized;
+                _finalNameTextBox.SelectionStart = Math.Min(caret, _finalNameTextBox.Text.Length);
+            }
+        }
+        finally
+        {
+            _suppressFinalNameUpdate = false;
+        }
+
+        UpdateFinalNamePreview();
+    }
+
+    private void UpdateFinalNamePreview()
+    {
+        var normalized = _pathSafetyService.SanitizeName(_finalNameTextBox.Text, _baseSuggestedName);
+        var extension = _saveAsMsgCheck.Checked ? ".msg" : ".txt";
+        var preview = $"{_receivedAt:yyyyMMdd}_{normalized}{extension}";
+        _finalNamePreviewLabel.Text = "Final file name preview: " + preview;
     }
 
     private void PopulateRemoveList(IEnumerable<SavedProjectDefinition> savedProjects)

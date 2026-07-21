@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using Inbox2Project.Models;
 
@@ -10,6 +11,7 @@ public sealed class SettingsService : ISettingsService
     private readonly string _appRoot;
     private readonly string _settingsPath;
     private readonly string _defaultProjectsRoot;
+    private readonly string _backupCsvPath;
 
     public SettingsService(string? appDataPath = null)
     {
@@ -17,7 +19,10 @@ public sealed class SettingsService : ISettingsService
         _appRoot = Path.Combine(appData, "Inbox2Project");
         _settingsPath = Path.Combine(_appRoot, "settings.json");
         _defaultProjectsRoot = Path.Combine(_appRoot, "Projects");
+        _backupCsvPath = Path.Combine(_appRoot, "saved-projects-backup.csv");
     }
+
+    public string DefaultBackupCsvPath => _backupCsvPath;
 
     public async Task<SettingsModel> LoadAsync(CancellationToken cancellationToken = default)
     {
@@ -187,5 +192,154 @@ public sealed class SettingsService : ISettingsService
         Directory.CreateDirectory(Path.GetDirectoryName(_settingsPath)!);
         var serialized = JsonSerializer.Serialize(model, JsonOptions);
         await File.WriteAllTextAsync(_settingsPath, serialized, cancellationToken);
+        await WriteBackupCsvAsync(model.SavedProjects, cancellationToken);
+    }
+
+    private async Task WriteBackupCsvAsync(List<SavedProjectDefinition> savedProjects, CancellationToken cancellationToken)
+    {
+        // Never overwrite a good backup with an empty snapshot - protects against
+        // settings.json being accidentally cleared/overwritten by another process.
+        if (savedProjects.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(_appRoot);
+            var lines = new List<string> { "Name,ProjectPath" };
+            lines.AddRange(savedProjects.Select(project => $"{CsvEscape(project.Name)},{CsvEscape(project.ProjectPath)}"));
+            await File.WriteAllLinesAsync(_backupCsvPath, lines, cancellationToken);
+        }
+        catch
+        {
+            // Backup is best-effort; never let a backup failure block the primary save.
+        }
+    }
+
+    public async Task<string> ExportSavedProjectsToCsvAsync(string csvPath, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(csvPath))
+        {
+            throw new ArgumentException("A destination CSV path is required.", nameof(csvPath));
+        }
+
+        var model = await LoadAsync(cancellationToken);
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(csvPath))!);
+        var lines = new List<string> { "Name,ProjectPath" };
+        lines.AddRange(model.SavedProjects.Select(project => $"{CsvEscape(project.Name)},{CsvEscape(project.ProjectPath)}"));
+        await File.WriteAllLinesAsync(csvPath, lines, cancellationToken);
+        return csvPath;
+    }
+
+    public async Task<CsvImportResult> ImportSavedProjectsFromCsvAsync(string csvPath, CancellationToken cancellationToken = default)
+    {
+        if (!File.Exists(csvPath))
+        {
+            throw new FileNotFoundException("The backup CSV file was not found.", csvPath);
+        }
+
+        var lines = await File.ReadAllLinesAsync(csvPath, cancellationToken);
+        var model = await LoadAsync(cancellationToken);
+        var imported = 0;
+        var skipped = 0;
+
+        foreach (var line in lines.Skip(1))
+        {
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            var fields = ParseCsvLine(line);
+            if (fields.Count < 2)
+            {
+                skipped++;
+                continue;
+            }
+
+            var name = fields[0].Trim();
+            var projectPath = fields[1].Trim();
+            if (string.IsNullOrWhiteSpace(projectPath) || !Directory.Exists(projectPath))
+            {
+                skipped++;
+                continue;
+            }
+
+            var existing = model.SavedProjects.FirstOrDefault(saved =>
+                string.Equals(saved.ProjectPath, projectPath, StringComparison.OrdinalIgnoreCase));
+            if (existing is not null)
+            {
+                skipped++;
+                continue;
+            }
+
+            model.SavedProjects.Add(new SavedProjectDefinition
+            {
+                Name = string.IsNullOrWhiteSpace(name) ? GetProjectName(null, projectPath) : name,
+                ProjectPath = projectPath,
+            });
+            imported++;
+        }
+
+        await SaveAsync(model, cancellationToken);
+        return new CsvImportResult(imported, skipped);
+    }
+
+    private static string CsvEscape(string value)
+    {
+        if (value.Contains(',') || value.Contains('"') || value.Contains('\n') || value.Contains('\r'))
+        {
+            return "\"" + value.Replace("\"", "\"\"") + "\"";
+        }
+
+        return value;
+    }
+
+    private static List<string> ParseCsvLine(string line)
+    {
+        var fields = new List<string>();
+        var current = new StringBuilder();
+        var inQuotes = false;
+
+        for (var i = 0; i < line.Length; i++)
+        {
+            var c = line[i];
+            if (inQuotes)
+            {
+                if (c == '"')
+                {
+                    if (i + 1 < line.Length && line[i + 1] == '"')
+                    {
+                        current.Append('"');
+                        i++;
+                    }
+                    else
+                    {
+                        inQuotes = false;
+                    }
+                }
+                else
+                {
+                    current.Append(c);
+                }
+            }
+            else if (c == ',')
+            {
+                fields.Add(current.ToString());
+                current.Clear();
+            }
+            else if (c == '"')
+            {
+                inQuotes = true;
+            }
+            else
+            {
+                current.Append(c);
+            }
+        }
+
+        fields.Add(current.ToString());
+        return fields;
     }
 }

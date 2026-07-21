@@ -4,24 +4,33 @@ using Inbox2Project.Outlook;
 using Inbox2Project.Services;
 
 var mode = args.Length > 0 ? args[0] : "no-attachments";
+// IMPORTANT: DevHarness must NEVER share the real Inbox2Project app-data folder
+// (%APPDATA%\Inbox2Project) - that file also backs the real Outlook add-in and
+// this harness overwrites settings.json with sample data on every run, which
+// previously wiped out the user's real saved project locations.
+// SettingsService/JsonLinesLoggingService both append an "Inbox2Project" segment
+// to whatever appDataPath they're given, so devHarnessAppDataRoot must be the
+// FAKE "AppData" root (one level above the "Inbox2Project" folder those services
+// will actually read/write).
 var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-var inboxRoot = Path.Combine(appData, "Inbox2Project");
+var devHarnessAppDataRoot = Path.Combine(appData, "Inbox2Project.DevHarness");
+var inboxRoot = Path.Combine(devHarnessAppDataRoot, "Inbox2Project");
 var projectsRoot = Path.Combine(inboxRoot, "Projects");
-var projectPath = Path.Combine(projectsRoot, "SampleProject");
+var projectPath = Path.Combine(projectsRoot, "DevHarnessProject");
 var emailsPath = Path.Combine(projectPath, "EMAILS");
 var settingsPath = Path.Combine(inboxRoot, "settings.json");
 
 Directory.CreateDirectory(emailsPath);
-await File.WriteAllTextAsync(settingsPath, "{\"ProjectsRoot\":\"" + EscapeJson(projectsRoot) + "\",\"LastSelectedProject\":\"" + EscapeJson(projectPath) + "\"}");
+await File.WriteAllTextAsync(settingsPath, "{\"ProjectsRoot\":\"" + EscapeJson(projectsRoot) + "\",\"LastSelectedProject\":\"" + EscapeJson(projectPath) + "\",\"SavedProjects\":[{\"Name\":\"DevHarnessProject\",\"ProjectPath\":\"" + EscapeJson(projectPath) + "\"}]}");
 
 var includeAttachments = string.Equals(mode, "attachments-yes", StringComparison.OrdinalIgnoreCase);
 var withAttachments = !string.Equals(mode, "no-attachments", StringComparison.OrdinalIgnoreCase);
 
-var loggingService = new JsonLinesLoggingService();
+var loggingService = new JsonLinesLoggingService(devHarnessAppDataRoot);
 var handler = new SaveToInbox2ProjectCommandHandler(
 	new SelectionValidationService(),
 	new ExportWorkflowService(
-		new SettingsService(),
+		new SettingsService(devHarnessAppDataRoot),
 		new ProjectDiscoveryService(),
 		new DefaultProjectSelectorUi(),
 		new DefaultAttachmentPromptService(includeAttachments),

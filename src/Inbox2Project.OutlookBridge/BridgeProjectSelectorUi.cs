@@ -7,23 +7,31 @@ public sealed class BridgeProjectSelectorUi : IProjectSelectorUi
 {
     private readonly ISettingsService _settingsService;
     private readonly IAiFolderNameService _aiFolderNameService;
+    private readonly IPathSafetyService _pathSafetyService;
 
     public BridgeProjectSelectorUi(ISettingsService settingsService, IAiFolderNameService aiFolderNameService)
     {
         _settingsService = settingsService;
         _aiFolderNameService = aiFolderNameService;
+        _pathSafetyService = new PathSafetyService();
     }
 
-    public async Task<string> SelectProjectAsync(IReadOnlyList<string> projectPaths, string? suggestedProjectPath, CancellationToken cancellationToken = default)
+    public async Task<ProjectSelectionResult?> SelectProjectAsync(
+        IReadOnlyList<string> projectPaths,
+        string? suggestedProjectPath,
+        string suggestedBaseName,
+        string senderName,
+        DateTimeOffset receivedAt,
+        CancellationToken cancellationToken = default)
     {
         var settings = await _settingsService.LoadAsync(cancellationToken);
-        using var form = new ProjectSelectorForm(_settingsService, projectPaths, settings, suggestedProjectPath, _aiFolderNameService);
+        using var form = new ProjectSelectorForm(_settingsService, _pathSafetyService, projectPaths, settings, suggestedProjectPath, suggestedBaseName, senderName, receivedAt, _aiFolderNameService);
         var result = form.ShowDialog();
         if (result == DialogResult.OK && !string.IsNullOrWhiteSpace(form.SelectedProjectPath))
         {
-            return form.SelectedProjectPath!;
+            return new ProjectSelectionResult(form.SelectedProjectPath!, form.SelectedFinalName ?? suggestedBaseName, form.SelectedSaveAsMsg);
         }
 
-        return string.Empty;
+        return null;
     }
 }
