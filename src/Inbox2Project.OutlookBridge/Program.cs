@@ -26,16 +26,21 @@ internal static class Program
         {
             using var mailExporter = LoadSingleSelectionFromOutlook(out var selected);
             using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-            var aiFolderNameService = new OpenAiFolderNameService(httpClient);
+            var openAiService = new OpenAiFolderNameService(httpClient);
+            var gitHubModelsService = new GitHubModelsFolderNameService(httpClient);
 
             var settingsService = new SettingsService();
+            var initialSettings = await settingsService.LoadAsync();
+            IAiFolderNameService aiFolderNameService = initialSettings.AiProvider == AiNamingProvider.GitHubModels
+                ? gitHubModelsService
+                : openAiService;
             var loggingService = new JsonLinesLoggingService();
             var handler = new SaveToInbox2ProjectCommandHandler(
                 new SelectionValidationService(),
                 new ExportWorkflowService(
                     settingsService,
                     new ProjectDiscoveryService(),
-                    new BridgeProjectSelectorUi(settingsService, aiFolderNameService),
+                    new BridgeProjectSelectorUi(settingsService, openAiService, gitHubModelsService),
                     new BridgeAttachmentPromptService(mode),
                     new PathSafetyService(),
                     aiFolderNameService,

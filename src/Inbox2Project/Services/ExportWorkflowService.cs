@@ -225,7 +225,7 @@ public sealed class ExportWorkflowService : IExportWorkflowService
                     attachmentCount,
                     outputs,
                     usedAiName = aiSubject is not null,
-                    aiModelAvailable = settings.UseLocalAiFolderNaming,
+                    aiModelAvailable = settings.AiProvider != AiNamingProvider.None,
                     duplicateSubjectDetected = existingMatch is not null,
                     overwroteExistingFolder = overwriteExisting,
                     savedAsMsg,
@@ -318,7 +318,7 @@ public sealed class ExportWorkflowService : IExportWorkflowService
 
     private async Task<string?> TryGetAiNameAsync(SettingsModel settings, OutlookItemSelection item, CancellationToken cancellationToken)
     {
-        if (!settings.UseLocalAiFolderNaming)
+        if (settings.AiProvider == AiNamingProvider.None)
         {
             return null;
         }

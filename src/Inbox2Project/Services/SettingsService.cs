@@ -56,8 +56,14 @@ public sealed class SettingsService : ISettingsService
 
     public async Task SaveUseLocalAiFolderNamingAsync(bool useLocalAiFolderNaming, CancellationToken cancellationToken = default)
     {
+        await SaveAiProviderAsync(useLocalAiFolderNaming ? AiNamingProvider.OpenAi : AiNamingProvider.None, cancellationToken);
+    }
+
+    public async Task SaveAiProviderAsync(AiNamingProvider provider, CancellationToken cancellationToken = default)
+    {
         var model = await LoadAsync(cancellationToken);
-        model.UseLocalAiFolderNaming = useLocalAiFolderNaming;
+        model.AiProvider = provider;
+        model.UseLocalAiFolderNaming = provider == AiNamingProvider.OpenAi;
         await SaveAsync(model, cancellationToken);
     }
 
@@ -145,6 +151,13 @@ public sealed class SettingsService : ISettingsService
         {
             settings.LastSelectedProject = null;
         }
+
+        // Migrate legacy UseLocalAiFolderNaming -> AiProvider
+        if (settings.AiProvider == AiNamingProvider.None && settings.UseLocalAiFolderNaming)
+        {
+            settings.AiProvider = AiNamingProvider.OpenAi;
+        }
+        settings.UseLocalAiFolderNaming = settings.AiProvider == AiNamingProvider.OpenAi;
 
         return settings;
     }

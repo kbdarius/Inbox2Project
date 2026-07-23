@@ -25,7 +25,9 @@ internal sealed class ProjectSelectorForm : Form
     private readonly IPathSafetyService _pathSafetyService;
     private readonly List<ProjectOption> _projects;
     private readonly TabControl _tabs;
-    private readonly IAiFolderNameService _aiFolderNameService;
+    private IAiFolderNameService _aiFolderNameService;
+    private readonly OpenAiFolderNameService _openAiService;
+    private readonly GitHubModelsFolderNameService _gitHubModelsService;
 
     private readonly ComboBox _projectCombo;
     private readonly Label _selectedPathLabel;
@@ -35,7 +37,7 @@ internal sealed class ProjectSelectorForm : Form
     private readonly string _baseSuggestedName;
     private readonly string _senderName;
     private readonly DateTimeOffset _receivedAt;
-    private readonly CheckBox _useLocalAiCheck;
+    private readonly ComboBox _aiProviderCombo;
     private readonly Label _aiStatusLabel;
     private readonly LinkLabel _aiSetupLink;
     private readonly CheckBox _saveAsMsgCheck;
@@ -59,11 +61,16 @@ internal sealed class ProjectSelectorForm : Form
         string suggestedBaseName,
         string senderName,
         DateTimeOffset receivedAt,
-        IAiFolderNameService aiFolderNameService)
+        OpenAiFolderNameService openAiService,
+        GitHubModelsFolderNameService gitHubModelsService)
     {
         _settingsService = settingsService;
         _pathSafetyService = pathSafetyService;
-        _aiFolderNameService = aiFolderNameService;
+        _openAiService = openAiService;
+        _gitHubModelsService = gitHubModelsService;
+        _aiFolderNameService = settings.AiProvider == AiNamingProvider.GitHubModels
+            ? (IAiFolderNameService)gitHubModelsService
+            : openAiService;
         _baseSuggestedName = suggestedBaseName ?? string.Empty;
         _senderName = senderName ?? string.Empty;
         _receivedAt = receivedAt;
@@ -95,8 +102,8 @@ internal sealed class ProjectSelectorForm : Form
             Padding = new System.Drawing.Point(14, 6),
         };
 
-        var selectTab = new TabPage("Select Project") { BackColor = System.Drawing.Color.White };
-        var addTab = new TabPage("Add Project") { BackColor = System.Drawing.Color.White };
+        var selectTab = new TabPage("Select Project") { BackColor = System.Drawing.Color.FromArgb(238, 243, 248) };
+        var addTab = new TabPage("Add Project") { BackColor = System.Drawing.Color.FromArgb(238, 243, 248) };
 
         _projectCombo = new ComboBox
         {
@@ -123,7 +130,7 @@ internal sealed class ProjectSelectorForm : Form
             AutoSize = false,
             AutoEllipsis = true,
             BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle,
-            BackColor = System.Drawing.Color.FromArgb(248, 250, 252),
+            BackColor = System.Drawing.Color.White,
             Padding = new System.Windows.Forms.Padding(8, 4, 8, 4),
             TextAlign = System.Drawing.ContentAlignment.MiddleLeft,
             Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
@@ -153,6 +160,7 @@ internal sealed class ProjectSelectorForm : Form
             Height = 30,
             MaxLength = 255,
             BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle,
+            BackColor = System.Drawing.Color.White,
             Text = _baseSuggestedName,
         };
         _finalNameTextBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
@@ -170,7 +178,7 @@ internal sealed class ProjectSelectorForm : Form
             AutoEllipsis = false,
             UseCompatibleTextRendering = true,
             BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle,
-            BackColor = System.Drawing.Color.FromArgb(248, 250, 252),
+            BackColor = System.Drawing.Color.White,
             Padding = new System.Windows.Forms.Padding(8, 5, 8, 5),
             Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
         };
@@ -187,16 +195,24 @@ internal sealed class ProjectSelectorForm : Form
         _includeSenderCheck.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         _includeSenderCheck.CheckedChanged += (_, _) => ApplySenderNameToggle();
 
-        _useLocalAiCheck = new CheckBox
+        _aiProviderCombo = new ComboBox
         {
             Left = 24,
             Top = 310,
             Width = 780,
-            Text = "Use OpenAI API naming (fast, low-cost gpt-5-nano)",
-            Checked = settings.UseLocalAiFolderNaming,
+            DropDownStyle = ComboBoxStyle.DropDownList,
         };
-        _useLocalAiCheck.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-        _useLocalAiCheck.CheckedChanged += async (_, _) => await UpdateAiOptionAsync();
+        _aiProviderCombo.Items.Add("No AI naming");
+        _aiProviderCombo.Items.Add("OpenAI API (gpt-5-nano)");
+        _aiProviderCombo.Items.Add("GitHub Models via GitHub PAT (gpt-4o-mini)");
+        _aiProviderCombo.SelectedIndex = settings.AiProvider switch
+        {
+            AiNamingProvider.OpenAi => 1,
+            AiNamingProvider.GitHubModels => 2,
+            _ => 0,
+        };
+        _aiProviderCombo.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        _aiProviderCombo.SelectedIndexChanged += async (_, _) => await UpdateAiOptionAsync();
 
         _aiStatusLabel = new Label
         {
@@ -222,9 +238,17 @@ internal sealed class ProjectSelectorForm : Form
         _aiSetupLink.Links.Add(0, _aiSetupLink.Text.Length);
         _aiSetupLink.LinkClicked += async (_, _) =>
         {
-            if (_aiFolderNameService is OpenAiFolderNameService openAiService)
+            if (_aiFolderNameService is GitHubModelsFolderNameService ghService)
             {
-                using var form = new OpenAiApiKeySetupForm(openAiService);
+                using var form = new GitHubModelsApiKeySetupForm(ghService);
+                form.ShowDialog(this);
+                await UpdateAiStatusAsync();
+                return;
+            }
+
+            if (_aiFolderNameService is OpenAiFolderNameService openAiSvc)
+            {
+                using var form = new OpenAiApiKeySetupForm(openAiSvc);
                 form.ShowDialog(this);
                 await UpdateAiStatusAsync();
                 return;
@@ -274,7 +298,7 @@ internal sealed class ProjectSelectorForm : Form
         selectTab.Controls.Add(_finalNameTextBox);
         selectTab.Controls.Add(_finalNamePreviewLabel);
         selectTab.Controls.Add(_includeSenderCheck);
-        selectTab.Controls.Add(_useLocalAiCheck);
+        selectTab.Controls.Add(_aiProviderCombo);
         selectTab.Controls.Add(_aiStatusLabel);
         selectTab.Controls.Add(_aiSetupLink);
         selectTab.Controls.Add(_saveAsMsgCheck);
@@ -300,6 +324,7 @@ internal sealed class ProjectSelectorForm : Form
             Width = 780,
             Height = 30,
             BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle,
+            BackColor = System.Drawing.Color.White,
         };
         _parentFolderTextBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         _parentFolderTextBox.TextChanged += (_, _) => UpdateLocationAndNicknameState();
@@ -312,6 +337,7 @@ internal sealed class ProjectSelectorForm : Form
             Height = 30,
             MaxLength = 255,
             BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle,
+            BackColor = System.Drawing.Color.White,
             Enabled = false,
         };
         _projectNameTextBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
@@ -374,7 +400,7 @@ internal sealed class ProjectSelectorForm : Form
         addTab.Controls.Add(_addStatusLabel);
 
         // ── Manage tab ──────────────────────────────────────────────
-        var manageTab = new TabPage("Manage Projects") { BackColor = System.Drawing.Color.White };
+        var manageTab = new TabPage("Manage Projects") { BackColor = System.Drawing.Color.FromArgb(238, 243, 248) };
 
         _removeListBox = new ListBox
         {
@@ -384,6 +410,7 @@ internal sealed class ProjectSelectorForm : Form
             Height = 190,
             SelectionMode = SelectionMode.One,
             BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle,
+            BackColor = System.Drawing.Color.White,
         };
         _removeListBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 
@@ -635,22 +662,38 @@ internal sealed class ProjectSelectorForm : Form
 
     private async Task UpdateAiStatusAsync()
     {
-        var setupState = await _aiFolderNameService.GetSetupStateAsync();
-        _aiSetupLink.Text = "Set up or update OpenAI API key";
-        _aiSetupLink.Links.Clear();
-        _aiSetupLink.Links.Add(0, _aiSetupLink.Text.Length);
-        if (!_useLocalAiCheck.Checked)
+        var selectedProvider = _aiProviderCombo.SelectedIndex switch
+        {
+            1 => AiNamingProvider.OpenAi,
+            2 => AiNamingProvider.GitHubModels,
+            _ => AiNamingProvider.None,
+        };
+
+        _aiFolderNameService = selectedProvider == AiNamingProvider.GitHubModels
+            ? (IAiFolderNameService)_gitHubModelsService
+            : _openAiService;
+
+        if (selectedProvider == AiNamingProvider.None)
         {
             _aiStatusLabel.ForeColor = System.Drawing.Color.DimGray;
-            _aiStatusLabel.Text = "OpenAI naming is disabled.";
-            _aiSetupLink.Visible = _aiFolderNameService is OpenAiFolderNameService;
+            _aiStatusLabel.Text = "AI naming is off.";
+            _aiSetupLink.Visible = false;
             return;
         }
+
+        bool isGitHub = selectedProvider == AiNamingProvider.GitHubModels;
+        _aiSetupLink.Text = isGitHub ? "Set up or update GitHub PAT" : "Set up or update OpenAI API key";
+        _aiSetupLink.Links.Clear();
+        _aiSetupLink.Links.Add(0, _aiSetupLink.Text.Length);
+
+        var setupState = await _aiFolderNameService.GetSetupStateAsync();
 
         if (!setupState.IsOllamaInstalled)
         {
             _aiStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
-            _aiStatusLabel.Text = "Add an OpenAI API key to enable fast AI naming.";
+            _aiStatusLabel.Text = isGitHub
+                ? "Add a GitHub PAT to enable AI naming via GitHub Models."
+                : "Add an OpenAI API key to enable AI naming.";
             _aiSetupLink.Visible = true;
             return;
         }
@@ -658,7 +701,9 @@ internal sealed class ProjectSelectorForm : Form
         if (!setupState.IsServerAvailable)
         {
             _aiStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
-            _aiStatusLabel.Text = "The OpenAI service could not be reached. Check the internet connection and try again.";
+            _aiStatusLabel.Text = isGitHub
+                ? "GitHub Models could not be reached. Check the internet connection and try again."
+                : "The OpenAI service could not be reached. Check the internet connection and try again.";
             _aiSetupLink.Visible = true;
             return;
         }
@@ -666,19 +711,29 @@ internal sealed class ProjectSelectorForm : Form
         if (!setupState.IsModelAvailable)
         {
             _aiStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
-            _aiStatusLabel.Text = "The API key was not accepted or does not have access to gpt-5-nano.";
+            _aiStatusLabel.Text = isGitHub
+                ? "The GitHub PAT was not accepted. Verify the token and try again."
+                : "The API key was not accepted or does not have access to gpt-5-nano.";
             _aiSetupLink.Visible = true;
             return;
         }
 
         _aiStatusLabel.ForeColor = System.Drawing.Color.DarkGreen;
-        _aiStatusLabel.Text = $"OpenAI naming is ready using {setupState.SelectedModelName ?? _aiFolderNameService.ModelName}.";
+        _aiStatusLabel.Text = isGitHub
+            ? $"GitHub Models naming is ready ({setupState.SelectedModelName ?? _aiFolderNameService.ModelName})."
+            : $"OpenAI naming is ready ({setupState.SelectedModelName ?? _aiFolderNameService.ModelName}).";
         _aiSetupLink.Visible = true;
     }
 
     private async Task UpdateAiOptionAsync()
     {
-        await _settingsService.SaveUseLocalAiFolderNamingAsync(_useLocalAiCheck.Checked);
+        var provider = _aiProviderCombo.SelectedIndex switch
+        {
+            1 => AiNamingProvider.OpenAi,
+            2 => AiNamingProvider.GitHubModels,
+            _ => AiNamingProvider.None,
+        };
+        await _settingsService.SaveAiProviderAsync(provider);
         await UpdateAiStatusAsync();
     }
 
