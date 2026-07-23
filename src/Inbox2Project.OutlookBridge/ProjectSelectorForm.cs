@@ -273,7 +273,7 @@ internal sealed class ProjectSelectorForm : Form
         selectTab.Controls.Add(_aiSetupLink);
         selectTab.Controls.Add(_saveAsMsgCheck);
         selectTab.Controls.Add(_selectedPathLabel);
-        selectTab.Controls.Add(new Label
+        var selectTipLabel = new Label
         {
             Left = 24,
             Top = 514,
@@ -283,7 +283,8 @@ internal sealed class ProjectSelectorForm : Form
             AutoSize = false,
             ForeColor = System.Drawing.Color.DimGray,
             Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-        });
+        };
+        selectTab.Controls.Add(selectTipLabel);
         selectTab.Controls.Add(_saveButton);
 
         _parentFolderTextBox = new TextBox
@@ -376,6 +377,7 @@ internal sealed class ProjectSelectorForm : Form
             Width = 780,
             Height = 190,
             SelectionMode = SelectionMode.One,
+            BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle,
         };
         _removeListBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 
@@ -433,14 +435,76 @@ internal sealed class ProjectSelectorForm : Form
             Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
         });
         manageTab.Controls.Add(_removeListBox);
-        manageTab.Controls.Add(new Label { Left = 24, Top = 244, Width = 300, Height = 24, Text = "Removing a project keeps all files on disk.", ForeColor = System.Drawing.Color.DimGray });
+        var manageHintLabel = new Label { Left = 24, Top = 244, Width = 300, Height = 24, Text = "Removing a project keeps all files on disk.", ForeColor = System.Drawing.Color.DimGray };
+        manageTab.Controls.Add(manageHintLabel);
         manageTab.Controls.Add(removeButton);
         manageTab.Controls.Add(editButton);
         manageTab.Controls.Add(_removeStatusLabel);
 
-        _addButton.BringToFront();
-        editButton.BringToFront();
-        removeButton.BringToFront();
+        var selectActionsPanel = new System.Windows.Forms.Panel
+        {
+            Dock = DockStyle.Bottom,
+            Height = 72,
+            BackColor = System.Drawing.Color.FromArgb(236, 244, 249),
+            BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle,
+        };
+        selectTab.Controls.Add(selectActionsPanel);
+        selectActionsPanel.Controls.Add(selectTipLabel);
+        selectActionsPanel.Controls.Add(_saveButton);
+        selectTipLabel.Left = 16;
+        selectTipLabel.Top = 22;
+        _saveButton.Top = 14;
+
+        var addActionsPanel = new System.Windows.Forms.Panel
+        {
+            Dock = DockStyle.Bottom,
+            Height = 72,
+            BackColor = System.Drawing.Color.FromArgb(236, 244, 249),
+            BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle,
+        };
+        addTab.Controls.Add(addActionsPanel);
+        addActionsPanel.Controls.Add(_addStatusLabel);
+        addActionsPanel.Controls.Add(_addButton);
+        _addStatusLabel.Left = 16;
+        _addStatusLabel.Top = 20;
+        _addButton.Top = 14;
+
+        var manageActionsPanel = new System.Windows.Forms.Panel
+        {
+            Dock = DockStyle.Bottom,
+            Height = 96,
+            BackColor = System.Drawing.Color.FromArgb(236, 244, 249),
+            BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle,
+        };
+        manageTab.Controls.Add(manageActionsPanel);
+        manageActionsPanel.Controls.Add(manageHintLabel);
+        manageActionsPanel.Controls.Add(editButton);
+        manageActionsPanel.Controls.Add(removeButton);
+        manageActionsPanel.Controls.Add(_removeStatusLabel);
+        manageHintLabel.Left = 16;
+        manageHintLabel.Top = 18;
+        editButton.Top = 12;
+        removeButton.Top = 12;
+        _removeStatusLabel.Left = 16;
+        _removeStatusLabel.Top = 58;
+
+        void LayoutActionPanels()
+        {
+            _saveButton.Left = Math.Max(16, selectActionsPanel.ClientSize.Width - 16 - _saveButton.Width);
+            selectTipLabel.Width = Math.Max(160, _saveButton.Left - 32);
+
+            _addButton.Left = Math.Max(16, addActionsPanel.ClientSize.Width - 16 - _addButton.Width);
+            _addStatusLabel.Width = Math.Max(160, _addButton.Left - 32);
+
+            removeButton.Left = Math.Max(16, manageActionsPanel.ClientSize.Width - 16 - removeButton.Width);
+            editButton.Left = Math.Max(16, removeButton.Left - 12 - editButton.Width);
+            manageHintLabel.Width = Math.Max(160, editButton.Left - 32);
+            _removeStatusLabel.Width = Math.Max(160, manageActionsPanel.ClientSize.Width - 32);
+        }
+
+        selectActionsPanel.Resize += (_, _) => LayoutActionPanels();
+        addActionsPanel.Resize += (_, _) => LayoutActionPanels();
+        manageActionsPanel.Resize += (_, _) => LayoutActionPanels();
 
         _tabs.Controls.Add(selectTab);
         _tabs.Controls.Add(addTab);
@@ -452,10 +516,17 @@ internal sealed class ProjectSelectorForm : Form
         UpdateAddButtonState();
         ApplySenderNameToggle();
         NormalizeAndPreviewFinalName();
+        selectTab.Resize += (_, _) => FitWideControls(selectTab);
+        addTab.Resize += (_, _) => FitWideControls(addTab);
+        manageTab.Resize += (_, _) => FitWideControls(manageTab);
         _tabs.SelectedIndexChanged += (_, _) => ResizeForSelectedTab();
         Load += async (_, _) =>
         {
             ResizeForSelectedTab();
+            FitWideControls(selectTab);
+            FitWideControls(addTab);
+            FitWideControls(manageTab);
+            LayoutActionPanels();
             await UpdateAiStatusAsync();
         };
 
@@ -485,6 +556,32 @@ internal sealed class ProjectSelectorForm : Form
         var desiredWindowHeight = desiredClientHeight + windowChromeHeight;
         MinimumSize = new System.Drawing.Size(860, desiredWindowHeight);
         Height = desiredWindowHeight;
+    }
+
+    private static void FitWideControls(TabPage tab)
+    {
+        var contentWidth = Math.Max(320, tab.ClientSize.Width - 48);
+        foreach (System.Windows.Forms.Control control in tab.Controls)
+        {
+            if (control.Dock != DockStyle.None || control is Button || control.Width < 600)
+            {
+                continue;
+            }
+
+            control.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+            control.Width = contentWidth;
+
+            if (control is TextBox textBox)
+            {
+                textBox.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+                textBox.BackColor = System.Drawing.Color.White;
+            }
+            else if (control is ListBox listBox)
+            {
+                listBox.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+                listBox.BackColor = System.Drawing.Color.White;
+            }
+        }
     }
 
     private static List<ProjectOption> BuildProjectOptions(
