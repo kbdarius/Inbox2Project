@@ -5,7 +5,7 @@ using System.Text.Json;
 namespace Inbox2Project.Services;
 
 /// <summary>
-/// Uses the GitHub Models inference API (https://models.inference.ai.azure.com) to suggest
+/// Uses the GitHub Models inference API (https://models.github.ai/inference) to suggest
 /// folder names. Authentication is via a GitHub Personal Access Token (PAT).
 /// This is the recommended path for environments where only GitHub Copilot access is available,
 /// as it uses the same GitHub identity/token without requiring VS Code to be running.
@@ -14,7 +14,7 @@ public sealed class GitHubModelsFolderNameService : IAiFolderNameService
 {
     public const string PatEnvironmentVariable = "INBOX2PROJECT_GITHUB_PAT";
     public const string DefaultModelName = "gpt-4o-mini";
-    private const string ApiBaseUrl = "https://models.inference.ai.azure.com";
+    private const string ApiBaseUrl = "https://models.github.ai/inference";
     private const string PatCreateUrl = "https://github.com/settings/tokens/new";
     private const int MaxBodyCharacters = 1200;
 
@@ -64,20 +64,41 @@ public sealed class GitHubModelsFolderNameService : IAiFolderNameService
 
         try
         {
-            // A lightweight probe: list models endpoint
-            using var request = CreateRequest(HttpMethod.Get, $"{ApiBaseUrl}/models", pat);
+            var probePayload = new
+            {
+                model = ModelName,
+                messages = new[]
+                {
+                    new { role = "user", content = "Reply with the single word OK." },
+                },
+                max_tokens = 5,
+            };
+            using var request = CreateRequest(HttpMethod.Post, $"{ApiBaseUrl}/chat/completions", pat);
+            request.Content = new StringContent(
+                JsonSerializer.Serialize(probePayload),
+                Encoding.UTF8,
+                "application/json");
             using var response = await _httpClient.SendAsync(request, cancellationToken);
+
             if (response.IsSuccessStatusCode)
             {
                 return new OllamaSetupState(true, true, true, ModelName, new[] { ModelName }, DownloadUrl);
             }
 
+            // 401/403 = token is invalid
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized
                 || response.StatusCode == System.Net.HttpStatusCode.Forbidden)
             {
                 return new OllamaSetupState(true, true, false, ModelName, Array.Empty<string>(), DownloadUrl);
             }
 
+            // 5xx = service unavailable (but token was accepted)
+            if ((int)response.StatusCode >= 500)
+            {
+                return new OllamaSetupState(true, false, false, ModelName, Array.Empty<string>(), DownloadUrl);
+            }
+
+            // Other errors (4xx except 401/403)
             return new OllamaSetupState(true, true, false, ModelName, Array.Empty<string>(), DownloadUrl);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)

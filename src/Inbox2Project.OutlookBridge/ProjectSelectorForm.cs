@@ -701,9 +701,14 @@ internal sealed class ProjectSelectorForm : Form
         if (!setupState.IsServerAvailable)
         {
             _aiStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
-            _aiStatusLabel.Text = isGitHub
-                ? "GitHub Models could not be reached. Check the internet connection and try again."
-                : "The OpenAI service could not be reached. Check the internet connection and try again.";
+            if (isGitHub)
+            {
+                _aiStatusLabel.Text = "GitHub Models service is not responding. Check your internet connection or try again later.";
+            }
+            else
+            {
+                _aiStatusLabel.Text = "The OpenAI service could not be reached. Check the internet connection and try again.";
+            }
             _aiSetupLink.Visible = true;
             return;
         }
@@ -711,9 +716,14 @@ internal sealed class ProjectSelectorForm : Form
         if (!setupState.IsModelAvailable)
         {
             _aiStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
-            _aiStatusLabel.Text = isGitHub
-                ? "The GitHub PAT was not accepted. Verify the token and try again."
-                : "The API key was not accepted or does not have access to gpt-5-nano.";
+            if (isGitHub)
+            {
+                _aiStatusLabel.Text = "The GitHub PAT was rejected. Verify the token is valid, has not expired, and try again.";
+            }
+            else
+            {
+                _aiStatusLabel.Text = "The API key was not accepted or does not have access to gpt-5-nano.";
+            }
             _aiSetupLink.Visible = true;
             return;
         }

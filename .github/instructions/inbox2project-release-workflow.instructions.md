@@ -21,7 +21,23 @@ Update all three version lines together:
 <AssemblyVersion>x.y.z.0</AssemblyVersion>
 ```
 
-## Step 2 - Publish
+## Step 2 - Clear known file locks
+
+Before publishing, check for processes that can lock the published add-in or bridge files:
+
+```powershell
+$lockers = @('OUTLOOK', 'Inbox2Project.OutlookBridge', 'MSBuild', 'dotnet')
+foreach ($name in $lockers) {
+	Get-Process -Name $name -ErrorAction SilentlyContinue |
+		Stop-Process -Force -ErrorAction SilentlyContinue
+}
+```
+
+Only stop the named Inbox2Project/build processes and Outlook. Do not stop unrelated applications.
+If Outlook has unsaved drafts or an active dialog, warn the user before closing it and wait for confirmation.
+After stopping Outlook, wait until `Get-Process OUTLOOK -ErrorAction SilentlyContinue` returns no process before publishing.
+
+## Step 3 - Publish
 
 Run the publish script to produce a Release build in `artifacts/outlook-vsto-addin/`:
 
@@ -29,7 +45,7 @@ Run the publish script to produce a Release build in `artifacts/outlook-vsto-add
 powershell -NoProfile -ExecutionPolicy Bypass -File "Publish-OutlookVstoAddIn.ps1"
 ```
 
-## Step 3 - Commit everything to git
+## Step 4 - Commit everything to git
 
 Stage all changed and new files, then commit with a clear message that starts with the version tag:
 
@@ -43,13 +59,13 @@ Use PowerShell for the commit so the multiline message is safe (avoids cmd inter
 git commit -m "v1.x.x: Short summary of what changed"
 ```
 
-## Step 4 - Push to main
+## Step 5 - Push to main
 
 ```
 git push origin main
 ```
 
-## Step 5 - Run the setup bat
+## Step 6 - Run the setup bat
 
 ```
 Setup-Inbox2Project.bat
