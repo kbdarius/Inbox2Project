@@ -26,7 +26,7 @@ internal static class Program
         {
             using var mailExporter = LoadSingleSelectionFromOutlook(out var selected);
             using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-            var aiFolderNameService = new OllamaFolderNameService(httpClient);
+            var aiFolderNameService = new OpenAiFolderNameService(httpClient);
 
             var settingsService = new SettingsService();
             var loggingService = new JsonLinesLoggingService();

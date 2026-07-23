@@ -192,7 +192,7 @@ internal sealed class ProjectSelectorForm : Form
             Left = 24,
             Top = 310,
             Width = 780,
-            Text = "Use local AI folder naming (Ollama)",
+            Text = "Use OpenAI API naming (fast, low-cost gpt-5-nano)",
             Checked = settings.UseLocalAiFolderNaming,
         };
         _useLocalAiCheck.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
@@ -215,17 +215,23 @@ internal sealed class ProjectSelectorForm : Form
             Top = 388,
             Width = 780,
             Height = 28,
-            Text = $"Install Ollama or view model setup guide: {_aiFolderNameService.DownloadUrl}",
+            Text = "Set up or update OpenAI API key",
             Visible = false,
         };
         _aiSetupLink.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-        _aiSetupLink.Links.Add(0, _aiSetupLink.Text.Length, _aiFolderNameService.DownloadUrl);
-        _aiSetupLink.LinkClicked += (_, args) =>
+        _aiSetupLink.Links.Add(0, _aiSetupLink.Text.Length);
+        _aiSetupLink.LinkClicked += async (_, _) =>
         {
-            if (args.Link?.LinkData is string uri && System.Uri.TryCreate(uri, System.UriKind.Absolute, out var url))
+            if (_aiFolderNameService is OpenAiFolderNameService openAiService)
             {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url.ToString()) { UseShellExecute = true });
+                using var form = new OpenAiApiKeySetupForm(openAiService);
+                form.ShowDialog(this);
+                await UpdateAiStatusAsync();
+                return;
             }
+
+            System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo(_aiFolderNameService.DownloadUrl) { UseShellExecute = true });
         };
 
         _saveAsMsgCheck = new CheckBox
@@ -630,21 +636,21 @@ internal sealed class ProjectSelectorForm : Form
     private async Task UpdateAiStatusAsync()
     {
         var setupState = await _aiFolderNameService.GetSetupStateAsync();
-        _aiSetupLink.Text = $"Install/Setup local AI: {setupState.SetupUrl}";
+        _aiSetupLink.Text = "Set up or update OpenAI API key";
         _aiSetupLink.Links.Clear();
-        _aiSetupLink.Links.Add(0, _aiSetupLink.Text.Length, setupState.SetupUrl);
+        _aiSetupLink.Links.Add(0, _aiSetupLink.Text.Length);
         if (!_useLocalAiCheck.Checked)
         {
             _aiStatusLabel.ForeColor = System.Drawing.Color.DimGray;
-            _aiStatusLabel.Text = "AI naming is disabled.";
-            _aiSetupLink.Visible = false;
+            _aiStatusLabel.Text = "OpenAI naming is disabled.";
+            _aiSetupLink.Visible = _aiFolderNameService is OpenAiFolderNameService;
             return;
         }
 
         if (!setupState.IsOllamaInstalled)
         {
             _aiStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
-            _aiStatusLabel.Text = "Ollama is not installed on this PC. Click the setup link to install it.";
+            _aiStatusLabel.Text = "Add an OpenAI API key to enable fast AI naming.";
             _aiSetupLink.Visible = true;
             return;
         }
@@ -652,7 +658,7 @@ internal sealed class ProjectSelectorForm : Form
         if (!setupState.IsServerAvailable)
         {
             _aiStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
-            _aiStatusLabel.Text = "Ollama is installed but not running. Start Ollama to enable local AI naming.";
+            _aiStatusLabel.Text = "The OpenAI service could not be reached. Check the internet connection and try again.";
             _aiSetupLink.Visible = true;
             return;
         }
@@ -660,17 +666,14 @@ internal sealed class ProjectSelectorForm : Form
         if (!setupState.IsModelAvailable)
         {
             _aiStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
-            var detected = setupState.InstalledModelNames.Count > 0
-                ? $"Detected models: {string.Join(", ", setupState.InstalledModelNames.Take(3))}."
-                : "No models were detected.";
-            _aiStatusLabel.Text = $"Ollama is running, but no compatible model is available. {detected}";
+            _aiStatusLabel.Text = "The API key was not accepted or does not have access to gpt-5-nano.";
             _aiSetupLink.Visible = true;
             return;
         }
 
         _aiStatusLabel.ForeColor = System.Drawing.Color.DarkGreen;
-        _aiStatusLabel.Text = $"AI naming ready using {setupState.SelectedModelName ?? _aiFolderNameService.ModelName}.";
-        _aiSetupLink.Visible = false;
+        _aiStatusLabel.Text = $"OpenAI naming is ready using {setupState.SelectedModelName ?? _aiFolderNameService.ModelName}.";
+        _aiSetupLink.Visible = true;
     }
 
     private async Task UpdateAiOptionAsync()
