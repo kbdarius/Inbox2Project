@@ -185,8 +185,7 @@ if "%MODE%"=="RELEASE" (
 
 echo Step 4/5 - Installing Outlook add-in (UAC required)...
 echo Outlook should be closed before install.
-set "PS_ARGS=-NoProfile -ExecutionPolicy Bypass -File \"%INSTALLER%\" -AddInDirectory \"%PUBLISHED_DIR%\""
-Start-Process powershell.exe -Verb RunAs -ArgumentList "%PS_ARGS%" -Wait
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$command = '& { & ''%INSTALLER%'' -AddInDirectory ''%PUBLISHED_DIR%''; exit $LASTEXITCODE }'; $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command)); $process = Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $encoded) -Wait -PassThru; exit $process.ExitCode"
 if errorlevel 1 (
     echo ERROR: Installer reported a problem. Check the elevated PowerShell output.
     goto :fail
