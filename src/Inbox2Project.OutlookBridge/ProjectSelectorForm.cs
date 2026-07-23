@@ -46,6 +46,7 @@ internal sealed class ProjectSelectorForm : Form
     private readonly Label _addStatusLabel;
     private readonly ListBox _removeListBox;
     private readonly Label _removeStatusLabel;
+    private readonly System.Windows.Forms.ToolTip _toolTip;
     private string? _editingProjectPath;
     private bool _suppressFinalNameUpdate;
 
@@ -69,110 +70,148 @@ internal sealed class ProjectSelectorForm : Form
         _projects = BuildProjectOptions(projectPaths, settings.SavedProjects, settings.LastSelectedProject);
 
         Text = AppInfo.WindowTitle("Select Project");
-        Width = 640;
-        Height = 540;
-        FormBorderStyle = FormBorderStyle.FixedDialog;
+        Width = 980;
+        Height = 720;
+        FormBorderStyle = FormBorderStyle.Sizable;
+        MinimumSize = new System.Drawing.Size(860, 660);
         StartPosition = FormStartPosition.CenterScreen;
-        MaximizeBox = false;
-        MinimizeBox = false;
+        MaximizeBox = true;
+        MinimizeBox = true;
+        AutoScaleMode = AutoScaleMode.Font;
         Font = new System.Drawing.Font("Segoe UI", 9F);
         BackColor = System.Drawing.Color.White;
+
+        _toolTip = new System.Windows.Forms.ToolTip
+        {
+            AutoPopDelay = 10000,
+            InitialDelay = 400,
+            ReshowDelay = 100,
+            ShowAlways = true,
+        };
 
         _tabs = new TabControl
         {
             Dock = DockStyle.Fill,
+            Padding = new System.Drawing.Point(14, 6),
         };
 
-        var selectTab = new TabPage("Select Project");
-        var addTab = new TabPage("Add Project");
+        var selectTab = new TabPage("Select Project") { BackColor = System.Drawing.Color.White };
+        var addTab = new TabPage("Add Project") { BackColor = System.Drawing.Color.White };
 
         _projectCombo = new ComboBox
         {
-            Left = 20,
-            Top = 32,
-            Width = 540,
+            Left = 24,
+            Top = 74,
+            Width = 920,
+            Height = 30,
             DropDownStyle = ComboBoxStyle.DropDownList,
+            DropDownWidth = 980,
+            DropDownHeight = 360,
+            IntegralHeight = false,
+            MaxDropDownItems = 12,
         };
+        _projectCombo.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         _projectCombo.SelectedIndexChanged += (_, _) => UpdatePathLabel();
         _projectCombo.DoubleClick += (_, _) => ConfirmSelection();
 
         _selectedPathLabel = new Label
         {
-            Left = 20,
-            Top = 296,
-            Width = 540,
-            Height = 32,
+            Left = 24,
+            Top = 412,
+            Width = 920,
+            Height = 48,
+            AutoSize = false,
+            AutoEllipsis = true,
+            BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle,
+            BackColor = System.Drawing.Color.FromArgb(248, 250, 252),
+            Padding = new System.Windows.Forms.Padding(8, 4, 8, 4),
+            TextAlign = System.Drawing.ContentAlignment.MiddleLeft,
         };
 
         _saveButton = new Button
         {
-            Left = 380,
-            Top = 392,
-            Width = 180,
-            Height = 36,
+            Left = 724,
+            Top = 520,
+            Width = 220,
+            Height = 40,
             Text = "Save to Selected Project",
             Font = new System.Drawing.Font(Font, System.Drawing.FontStyle.Bold),
+            FlatStyle = FlatStyle.System,
         };
+        _saveButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         _saveButton.Click += (_, _) => ConfirmSelection();
 
         _finalNameTextBox = new TextBox
         {
-            Left = 20,
-            Top = 80,
-            Width = 540,
+            Left = 24,
+            Top = 146,
+            Width = 920,
+            Height = 30,
+            MaxLength = 255,
             Text = _baseSuggestedName,
         };
+        _finalNameTextBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         _finalNameTextBox.TextChanged += (_, _) => NormalizeAndPreviewFinalName();
 
         _finalNamePreviewLabel = new Label
         {
-            Left = 20,
-            Top = 106,
-            Width = 540,
-            Height = 22,
+            Left = 24,
+            Top = 180,
+            Width = 920,
+            Height = 46,
             ForeColor = System.Drawing.Color.DimGray,
             Text = string.Empty,
+            AutoSize = false,
+            AutoEllipsis = false,
+            UseCompatibleTextRendering = true,
+            BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle,
+            BackColor = System.Drawing.Color.FromArgb(248, 250, 252),
+            Padding = new System.Windows.Forms.Padding(8, 5, 8, 5),
         };
 
         _includeSenderCheck = new CheckBox
         {
-            Left = 20,
-            Top = 132,
-            Width = 540,
+            Left = 24,
+            Top = 238,
+            Width = 920,
             Text = "Include sender name in file name (sender_subject)",
             Enabled = !string.IsNullOrWhiteSpace(_senderName),
             Checked = !string.IsNullOrWhiteSpace(_senderName),
         };
+        _includeSenderCheck.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         _includeSenderCheck.CheckedChanged += (_, _) => ApplySenderNameToggle();
 
         _useLocalAiCheck = new CheckBox
         {
-            Left = 20,
-            Top = 160,
-            Width = 540,
+            Left = 24,
+            Top = 266,
+            Width = 920,
             Text = "Use local AI folder naming (Ollama)",
             Checked = settings.UseLocalAiFolderNaming,
         };
+        _useLocalAiCheck.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         _useLocalAiCheck.CheckedChanged += async (_, _) => await UpdateAiOptionAsync();
 
         _aiStatusLabel = new Label
         {
-            Left = 20,
-            Top = 186,
-            Width = 540,
-            Height = 44,
+            Left = 24,
+            Top = 294,
+            Width = 920,
+            Height = 54,
             Text = "Checking AI setup...",
+            AutoSize = false,
         };
 
         _aiSetupLink = new LinkLabel
         {
-            Left = 20,
-            Top = 232,
-            Width = 540,
+            Left = 24,
+            Top = 350,
+            Width = 920,
             Height = 28,
             Text = $"Install Ollama or view model setup guide: {_aiFolderNameService.DownloadUrl}",
             Visible = false,
         };
+        _aiSetupLink.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         _aiSetupLink.Links.Add(0, _aiSetupLink.Text.Length, _aiFolderNameService.DownloadUrl);
         _aiSetupLink.LinkClicked += (_, args) =>
         {
@@ -184,17 +223,36 @@ internal sealed class ProjectSelectorForm : Form
 
         _saveAsMsgCheck = new CheckBox
         {
-            Left = 20,
-            Top = 266,
-            Width = 540,
+            Left = 24,
+            Top = 382,
+            Width = 920,
             Height = 24,
             Text = "Save email as Outlook message (.msg) to preserve formatting, images, and tables",
         };
+        _saveAsMsgCheck.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         _saveAsMsgCheck.CheckedChanged += (_, _) => UpdateFinalNamePreview();
 
-        selectTab.Controls.Add(new Label { Left = 20, Top = 12, Width = 200, Text = "Select project to save into:" });
+        selectTab.Controls.Add(new Label
+        {
+            Left = 24,
+            Top = 12,
+            Width = 920,
+            Height = 26,
+            Text = "Save this email to a project",
+            Font = new System.Drawing.Font(Font, System.Drawing.FontStyle.Bold),
+        });
+        selectTab.Controls.Add(new Label
+        {
+            Left = 24,
+            Top = 38,
+            Width = 920,
+            Height = 22,
+            Text = "Choose a destination, review the file name, then save.",
+            ForeColor = System.Drawing.Color.DimGray,
+        });
+        selectTab.Controls.Add(new Label { Left = 24, Top = 62, Width = 400, Text = "Project destination:" });
         selectTab.Controls.Add(_projectCombo);
-        selectTab.Controls.Add(new Label { Left = 20, Top = 60, Width = 300, Text = "Final file name (before date prefix, no extension):" });
+        selectTab.Controls.Add(new Label { Left = 24, Top = 126, Width = 500, Text = "File name (before date prefix and extension):" });
         selectTab.Controls.Add(_finalNameTextBox);
         selectTab.Controls.Add(_finalNamePreviewLabel);
         selectTab.Controls.Add(_includeSenderCheck);
@@ -203,98 +261,145 @@ internal sealed class ProjectSelectorForm : Form
         selectTab.Controls.Add(_aiSetupLink);
         selectTab.Controls.Add(_saveAsMsgCheck);
         selectTab.Controls.Add(_selectedPathLabel);
-        selectTab.Controls.Add(new Label { Left = 20, Top = 366, Width = 540, Height = 32, Text = "Tip: add a new project on the Add Project tab first, then return here to select it." });
+        selectTab.Controls.Add(new Label
+        {
+            Left = 24,
+            Top = 468,
+            Width = 920,
+            Height = 42,
+            Text = "Tip: add a new project on the Add Project tab first, then return here to select it.",
+            AutoSize = false,
+            ForeColor = System.Drawing.Color.DimGray,
+        });
         selectTab.Controls.Add(_saveButton);
 
         _parentFolderTextBox = new TextBox
         {
-            Left = 20,
-            Top = 32,
-            Width = 540,
+            Left = 24,
+            Top = 38,
+            Width = 920,
+            Height = 30,
         };
+        _parentFolderTextBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         _parentFolderTextBox.TextChanged += (_, _) => UpdateLocationAndNicknameState();
 
         _projectNameTextBox = new TextBox
         {
-            Left = 20,
-            Top = 100,
-            Width = 540,
+            Left = 24,
+            Top = 116,
+            Width = 920,
+            Height = 30,
+            MaxLength = 255,
             Enabled = false,
         };
-        _parentFolderTextBox.TextChanged += (_, _) => UpdateAddButtonState();
+        _projectNameTextBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         _projectNameTextBox.TextChanged += (_, _) => UpdateAddButtonState();
 
         _addButton = new Button
         {
-            Left = 380,
-            Top = 200,
+            Left = 764,
+            Top = 216,
             Width = 180,
-            Height = 36,
+            Height = 40,
             Text = "Add Project",
+            FlatStyle = FlatStyle.System,
         };
+        _addButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         _addButton.Click += async (_, _) => await AddProjectAsync();
 
         _addStatusLabel = new Label
         {
-            Left = 20,
-            Top = 244,
-            Width = 540,
+            Left = 24,
+            Top = 264,
+            Width = 920,
             Height = 32,
             ForeColor = System.Drawing.Color.DarkGreen,
         };
 
-        addTab.Controls.Add(new Label { Left = 20, Top = 12, Width = 300, Text = "Destination Folder (must already exist)" });
+        addTab.Controls.Add(new Label
+        {
+            Left = 24,
+            Top = 12,
+            Width = 920,
+            Height = 26,
+            Text = "Add or edit a project",
+            Font = new System.Drawing.Font(Font, System.Drawing.FontStyle.Bold),
+        });
+        addTab.Controls.Add(new Label { Left = 24, Top = 70, Width = 500, Text = "Destination folder (must already exist):" });
         addTab.Controls.Add(_parentFolderTextBox);
-        addTab.Controls.Add(new Label { Left = 20, Top = 80, Width = 260, Text = "Nickname (optional)" });
+        addTab.Controls.Add(new Label { Left = 24, Top = 96, Width = 260, Text = "Project nickname (optional):" });
         addTab.Controls.Add(_projectNameTextBox);
-        addTab.Controls.Add(new Label { Left = 20, Top = 132, Width = 540, Text = "Files are saved directly to this location. The nickname is suggested from the folder name." });
+        addTab.Controls.Add(new Label
+        {
+            Left = 24,
+            Top = 156,
+            Width = 920,
+            Height = 40,
+            Text = "Files are saved directly to this location. The nickname is suggested from the folder name.",
+            AutoSize = false,
+            ForeColor = System.Drawing.Color.DimGray,
+        });
         addTab.Controls.Add(_addButton);
         addTab.Controls.Add(_addStatusLabel);
 
         // ── Manage tab ──────────────────────────────────────────────
-        var manageTab = new TabPage("Manage Projects");
+        var manageTab = new TabPage("Manage Projects") { BackColor = System.Drawing.Color.White };
 
         _removeListBox = new ListBox
         {
-            Left = 20,
-            Top = 32,
-            Width = 540,
-            Height = 140,
+            Left = 24,
+            Top = 44,
+            Width = 920,
+            Height = 190,
             SelectionMode = SelectionMode.One,
         };
+        _removeListBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 
         var removeButton = new Button
         {
-            Left = 380,
-            Top = 184,
+            Left = 764,
+            Top = 248,
             Width = 180,
-            Height = 36,
+            Height = 40,
             Text = "Remove Selected",
+            FlatStyle = FlatStyle.System,
         };
+        removeButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         removeButton.Click += async (_, _) => await RemoveProjectAsync();
 
         var editButton = new Button
         {
-            Left = 230,
-            Top = 184,
+            Left = 608,
+            Top = 248,
             Width = 140,
-            Height = 36,
+            Height = 40,
             Text = "Edit Selected",
+            FlatStyle = FlatStyle.System,
         };
+        editButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         editButton.Click += (_, _) => BeginEditProject();
 
         _removeStatusLabel = new Label
         {
-            Left = 20,
-            Top = 230,
-            Width = 540,
+            Left = 24,
+            Top = 296,
+            Width = 920,
             Height = 32,
             ForeColor = System.Drawing.Color.DarkGreen,
+            AutoSize = false,
         };
 
-        manageTab.Controls.Add(new Label { Left = 20, Top = 12, Width = 540, Text = "Saved projects:" });
+        manageTab.Controls.Add(new Label
+        {
+            Left = 24,
+            Top = 12,
+            Width = 920,
+            Height = 26,
+            Text = "Manage saved projects",
+            Font = new System.Drawing.Font(Font, System.Drawing.FontStyle.Bold),
+        });
         manageTab.Controls.Add(_removeListBox);
-        manageTab.Controls.Add(new Label { Left = 20, Top = 190, Width = 200, Height = 24, Text = "List only; files are kept." });
+        manageTab.Controls.Add(new Label { Left = 24, Top = 242, Width = 300, Height = 24, Text = "List only; files are kept.", ForeColor = System.Drawing.Color.DimGray });
         manageTab.Controls.Add(removeButton);
         manageTab.Controls.Add(editButton);
         manageTab.Controls.Add(_removeStatusLabel);
@@ -310,6 +415,12 @@ internal sealed class ProjectSelectorForm : Form
         ApplySenderNameToggle();
         NormalizeAndPreviewFinalName();
         Load += async (_, _) => await UpdateAiStatusAsync();
+
+        _toolTip.SetToolTip(_projectCombo, "Select the project folder where this email will be saved.");
+        _toolTip.SetToolTip(_finalNameTextBox, "Use letters, numbers, spaces, underscores, periods, and dashes. Maximum 255 characters.");
+        _toolTip.SetToolTip(_finalNamePreviewLabel, "The complete file name that will be created.");
+        _toolTip.SetToolTip(_parentFolderTextBox, "Enter an existing folder path.");
+        _toolTip.SetToolTip(_projectNameTextBox, "Optional display name used in the project list.");
     }
 
     public string? SelectedProjectPath { get; private set; }
@@ -423,6 +534,7 @@ internal sealed class ProjectSelectorForm : Form
         }
 
         _selectedPathLabel.Text = option.Path;
+        _toolTip.SetToolTip(_selectedPathLabel, option.Path);
         _saveButton.Enabled = Directory.Exists(option.Path);
     }
 

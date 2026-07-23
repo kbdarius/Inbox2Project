@@ -211,7 +211,7 @@ public sealed class OllamaFolderNameService : IAiFolderNameService
 
         return
             $"You are naming email exports. Suggest ONE folder/file base name using letters, numbers, spaces, and dashes only. " +
-            $"Return only a single line, 3-60 characters, no path separators. Subject: {safeSubject} Body: {safeBody}";
+            $"Return only a single line, 3-255 characters, no path separators. Subject: {safeSubject} Body: {safeBody}";
     }
 
     private static string? NormalizeSuggestion(string raw)

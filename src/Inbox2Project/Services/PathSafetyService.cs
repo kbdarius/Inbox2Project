@@ -6,10 +6,10 @@ namespace Inbox2Project.Services;
 
 public sealed class PathSafetyService : IPathSafetyService
 {
-    private const int MaxNameLength = 60;
+    private const int MaxNameLength = 255;
     private static readonly Regex PrefixCleaner = new(@"^\s*(?:(?:re|fw|fwd)\s*:?\s*)+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex MultiDelimiterRegex = new(@"[\\/\|:*?\" + "\"" + @"<>[\]{}()]+", RegexOptions.Compiled);
-    private static readonly Regex WordSeparatorRegex = new(@"[\s-]+", RegexOptions.Compiled);
+    private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
 
     public string SanitizeName(string value, string fallback = "untitled")
     {
@@ -39,10 +39,14 @@ public sealed class PathSafetyService : IPathSafetyService
 
         var sanitized = builder.ToString();
         sanitized = MultiDelimiterRegex.Replace(sanitized, " ");
+        sanitized = Regex.Replace(sanitized, @"[^A-Za-z0-9 _.-]", " ");
         sanitized = sanitized.Replace("\t", " ").Replace("\r", " ").Replace("\n", " ");
-        sanitized = WordSeparatorRegex.Replace(sanitized.Trim(), "_");
+        sanitized = WhitespaceRegex.Replace(sanitized.Trim(), " ");
 
-        while (sanitized.EndsWith(".", StringComparison.Ordinal) || sanitized.EndsWith("_", StringComparison.Ordinal))
+        while (sanitized.EndsWith(".", StringComparison.Ordinal)
+            || sanitized.EndsWith("_", StringComparison.Ordinal)
+            || sanitized.EndsWith("-", StringComparison.Ordinal)
+            || sanitized.EndsWith(" ", StringComparison.Ordinal))
         {
             sanitized = sanitized[..^1];
         }
@@ -52,7 +56,7 @@ public sealed class PathSafetyService : IPathSafetyService
             return fallback;
         }
 
-        return sanitized.Length <= MaxNameLength ? sanitized : sanitized[..MaxNameLength].Trim('_');
+        return sanitized.Length <= MaxNameLength ? sanitized : sanitized[..MaxNameLength].TrimEnd(' ', '.', '_', '-');
     }
 
     public string GetUniquePath(string directoryPath, string fileName)
