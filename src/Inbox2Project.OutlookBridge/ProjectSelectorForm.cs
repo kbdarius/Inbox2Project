@@ -70,7 +70,7 @@ internal sealed class ProjectSelectorForm : Form
         _projects = BuildProjectOptions(projectPaths, settings.SavedProjects, settings.LastSelectedProject);
 
         Text = AppInfo.WindowTitle("Select Project");
-        Width = 980;
+        Width = 860;
         Height = 720;
         FormBorderStyle = FormBorderStyle.Sizable;
         MinimumSize = new System.Drawing.Size(860, 660);
@@ -79,7 +79,7 @@ internal sealed class ProjectSelectorForm : Form
         MinimizeBox = true;
         AutoScaleMode = AutoScaleMode.Font;
         Font = new System.Drawing.Font("Segoe UI", 9F);
-        BackColor = System.Drawing.Color.White;
+        BackColor = System.Drawing.Color.FromArgb(242, 246, 250);
 
         _toolTip = new System.Windows.Forms.ToolTip
         {
@@ -102,10 +102,10 @@ internal sealed class ProjectSelectorForm : Form
         {
             Left = 24,
             Top = 74,
-            Width = 920,
+            Width = 780,
             Height = 30,
             DropDownStyle = ComboBoxStyle.DropDownList,
-            DropDownWidth = 980,
+            DropDownWidth = 780,
             DropDownHeight = 360,
             IntegralHeight = false,
             MaxDropDownItems = 12,
@@ -118,7 +118,7 @@ internal sealed class ProjectSelectorForm : Form
         {
             Left = 24,
             Top = 412,
-            Width = 920,
+            Width = 780,
             Height = 48,
             AutoSize = false,
             AutoEllipsis = true,
@@ -130,13 +130,15 @@ internal sealed class ProjectSelectorForm : Form
 
         _saveButton = new Button
         {
-            Left = 724,
+            Left = 584,
             Top = 520,
             Width = 220,
             Height = 40,
             Text = "Save to Selected Project",
             Font = new System.Drawing.Font(Font, System.Drawing.FontStyle.Bold),
-            FlatStyle = FlatStyle.System,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = System.Drawing.Color.FromArgb(0, 112, 120),
+            ForeColor = System.Drawing.Color.White,
         };
         _saveButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         _saveButton.Click += (_, _) => ConfirmSelection();
@@ -145,9 +147,10 @@ internal sealed class ProjectSelectorForm : Form
         {
             Left = 24,
             Top = 146,
-            Width = 920,
+            Width = 780,
             Height = 30,
             MaxLength = 255,
+            BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle,
             Text = _baseSuggestedName,
         };
         _finalNameTextBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
@@ -157,7 +160,7 @@ internal sealed class ProjectSelectorForm : Form
         {
             Left = 24,
             Top = 180,
-            Width = 920,
+            Width = 780,
             Height = 46,
             ForeColor = System.Drawing.Color.DimGray,
             Text = string.Empty,
@@ -173,7 +176,7 @@ internal sealed class ProjectSelectorForm : Form
         {
             Left = 24,
             Top = 238,
-            Width = 920,
+            Width = 780,
             Text = "Include sender name in file name (sender_subject)",
             Enabled = !string.IsNullOrWhiteSpace(_senderName),
             Checked = !string.IsNullOrWhiteSpace(_senderName),
@@ -185,7 +188,7 @@ internal sealed class ProjectSelectorForm : Form
         {
             Left = 24,
             Top = 266,
-            Width = 920,
+            Width = 780,
             Text = "Use local AI folder naming (Ollama)",
             Checked = settings.UseLocalAiFolderNaming,
         };
@@ -196,7 +199,7 @@ internal sealed class ProjectSelectorForm : Form
         {
             Left = 24,
             Top = 294,
-            Width = 920,
+            Width = 780,
             Height = 54,
             Text = "Checking AI setup...",
             AutoSize = false,
@@ -206,7 +209,7 @@ internal sealed class ProjectSelectorForm : Form
         {
             Left = 24,
             Top = 350,
-            Width = 920,
+            Width = 780,
             Height = 28,
             Text = $"Install Ollama or view model setup guide: {_aiFolderNameService.DownloadUrl}",
             Visible = false,
@@ -225,7 +228,7 @@ internal sealed class ProjectSelectorForm : Form
         {
             Left = 24,
             Top = 382,
-            Width = 920,
+            Width = 780,
             Height = 24,
             Text = "Save email as Outlook message (.msg) to preserve formatting, images, and tables",
         };
@@ -236,16 +239,19 @@ internal sealed class ProjectSelectorForm : Form
         {
             Left = 24,
             Top = 12,
-            Width = 920,
+            Width = 780,
             Height = 26,
             Text = "Save this email to a project",
             Font = new System.Drawing.Font(Font, System.Drawing.FontStyle.Bold),
+            BackColor = System.Drawing.Color.FromArgb(32, 99, 155),
+            ForeColor = System.Drawing.Color.White,
+            Padding = new System.Windows.Forms.Padding(10, 4, 0, 0),
         });
         selectTab.Controls.Add(new Label
         {
             Left = 24,
             Top = 38,
-            Width = 920,
+            Width = 780,
             Height = 22,
             Text = "Choose a destination, review the file name, then save.",
             ForeColor = System.Drawing.Color.DimGray,
@@ -265,7 +271,7 @@ internal sealed class ProjectSelectorForm : Form
         {
             Left = 24,
             Top = 468,
-            Width = 920,
+            Width = 780,
             Height = 42,
             Text = "Tip: add a new project on the Add Project tab first, then return here to select it.",
             AutoSize = false,
@@ -277,8 +283,9 @@ internal sealed class ProjectSelectorForm : Form
         {
             Left = 24,
             Top = 38,
-            Width = 920,
+            Width = 780,
             Height = 30,
+            BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle,
         };
         _parentFolderTextBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         _parentFolderTextBox.TextChanged += (_, _) => UpdateLocationAndNicknameState();
@@ -287,9 +294,10 @@ internal sealed class ProjectSelectorForm : Form
         {
             Left = 24,
             Top = 116,
-            Width = 920,
+            Width = 780,
             Height = 30,
             MaxLength = 255,
+            BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle,
             Enabled = false,
         };
         _projectNameTextBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
@@ -297,12 +305,14 @@ internal sealed class ProjectSelectorForm : Form
 
         _addButton = new Button
         {
-            Left = 764,
+            Left = 624,
             Top = 216,
             Width = 180,
             Height = 40,
             Text = "Add Project",
-            FlatStyle = FlatStyle.System,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = System.Drawing.Color.FromArgb(0, 112, 120),
+            ForeColor = System.Drawing.Color.White,
         };
         _addButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         _addButton.Click += async (_, _) => await AddProjectAsync();
@@ -311,7 +321,7 @@ internal sealed class ProjectSelectorForm : Form
         {
             Left = 24,
             Top = 264,
-            Width = 920,
+            Width = 780,
             Height = 32,
             ForeColor = System.Drawing.Color.DarkGreen,
         };
@@ -320,10 +330,13 @@ internal sealed class ProjectSelectorForm : Form
         {
             Left = 24,
             Top = 12,
-            Width = 920,
+            Width = 780,
             Height = 26,
             Text = "Add or edit a project",
             Font = new System.Drawing.Font(Font, System.Drawing.FontStyle.Bold),
+            BackColor = System.Drawing.Color.FromArgb(32, 99, 155),
+            ForeColor = System.Drawing.Color.White,
+            Padding = new System.Windows.Forms.Padding(10, 4, 0, 0),
         });
         addTab.Controls.Add(new Label { Left = 24, Top = 70, Width = 500, Text = "Destination folder (must already exist):" });
         addTab.Controls.Add(_parentFolderTextBox);
@@ -333,7 +346,7 @@ internal sealed class ProjectSelectorForm : Form
         {
             Left = 24,
             Top = 156,
-            Width = 920,
+            Width = 780,
             Height = 40,
             Text = "Files are saved directly to this location. The nickname is suggested from the folder name.",
             AutoSize = false,
@@ -349,7 +362,7 @@ internal sealed class ProjectSelectorForm : Form
         {
             Left = 24,
             Top = 44,
-            Width = 920,
+            Width = 780,
             Height = 190,
             SelectionMode = SelectionMode.One,
         };
@@ -357,24 +370,28 @@ internal sealed class ProjectSelectorForm : Form
 
         var removeButton = new Button
         {
-            Left = 764,
+            Left = 624,
             Top = 248,
             Width = 180,
             Height = 40,
             Text = "Remove Selected",
-            FlatStyle = FlatStyle.System,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = System.Drawing.Color.FromArgb(0, 112, 120),
+            ForeColor = System.Drawing.Color.White,
         };
         removeButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         removeButton.Click += async (_, _) => await RemoveProjectAsync();
 
         var editButton = new Button
         {
-            Left = 608,
+            Left = 468,
             Top = 248,
             Width = 140,
             Height = 40,
             Text = "Edit Selected",
-            FlatStyle = FlatStyle.System,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = System.Drawing.Color.FromArgb(232, 239, 246),
+            ForeColor = System.Drawing.Color.FromArgb(35, 58, 80),
         };
         editButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         editButton.Click += (_, _) => BeginEditProject();
@@ -383,7 +400,7 @@ internal sealed class ProjectSelectorForm : Form
         {
             Left = 24,
             Top = 296,
-            Width = 920,
+            Width = 780,
             Height = 32,
             ForeColor = System.Drawing.Color.DarkGreen,
             AutoSize = false,
@@ -393,10 +410,13 @@ internal sealed class ProjectSelectorForm : Form
         {
             Left = 24,
             Top = 12,
-            Width = 920,
+            Width = 780,
             Height = 26,
             Text = "Manage saved projects",
             Font = new System.Drawing.Font(Font, System.Drawing.FontStyle.Bold),
+            BackColor = System.Drawing.Color.FromArgb(32, 99, 155),
+            ForeColor = System.Drawing.Color.White,
+            Padding = new System.Windows.Forms.Padding(10, 4, 0, 0),
         });
         manageTab.Controls.Add(_removeListBox);
         manageTab.Controls.Add(new Label { Left = 24, Top = 242, Width = 300, Height = 24, Text = "List only; files are kept.", ForeColor = System.Drawing.Color.DimGray });
