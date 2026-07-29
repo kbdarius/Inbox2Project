@@ -193,6 +193,7 @@ function Commit-And-PushRelease([string]$version) {
         'Setup-Inbox2Project.bat',
         'Setup-Inbox2Project.ps1',
         'src/Inbox2Project.OutlookBridge/ProjectSelectorForm.cs',
+        'src/Inbox2Project.OutlookBridge/Inbox2Project.OutlookBridge.csproj',
         'src/Inbox2Project/Services/FileNameBaseNameNormalizer.cs',
         'src/Inbox2Project/Services/GitHubModelsFolderNameService.cs',
         'src/Inbox2Project/Services/OllamaFolderNameService.cs',
