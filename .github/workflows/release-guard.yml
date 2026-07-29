@@ -64,14 +64,14 @@ jobs:
               'src/',
               'Publish-OutlookVstoAddIn.ps1',
               'Install-OutlookVstoAddIn.ps1',
-              'Uninstall-OutlookVstoAddIn.ps1',
-              'Setup-Inbox2Project.bat',
-              'Setup-Inbox2Project.ps1',
-              'Create-Inbox2ProjectShortcut.ps1'
+              'Uninstall-OutlookVstoAddIn.ps1'
           )
 
+          $versionFile = 'src/Inbox2Project.OutlookBridge/Inbox2Project.OutlookBridge.csproj'
+          $shippedCodeFiles = @($changedFiles | Where-Object { $_ -ne $versionFile })
+
           $requiresVersionBump = $false
-          foreach ($file in $changedFiles) {
+          foreach ($file in $shippedCodeFiles) {
               foreach ($prefix in $watchedPrefixes) {
                   if ($file.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
                       $requiresVersionBump = $true
@@ -89,7 +89,6 @@ jobs:
               exit 0
           }
 
-          $versionFile = 'src/Inbox2Project.OutlookBridge/Inbox2Project.OutlookBridge.csproj'
           if (-not ($changedFiles -contains $versionFile)) {
               throw "Shipped-code files changed, but $versionFile was not updated."
           }
