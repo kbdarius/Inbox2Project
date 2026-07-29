@@ -71,7 +71,11 @@ internal sealed class ProjectSelectorForm : Form
         _aiFolderNameService = settings.AiProvider == AiNamingProvider.GitHubModels
             ? (IAiFolderNameService)gitHubModelsService
             : openAiService;
-        _baseSuggestedName = suggestedBaseName ?? string.Empty;
+        _baseSuggestedName = FileNameBaseNameNormalizer.NormalizeEditableBaseName(
+            suggestedBaseName,
+            "untitled",
+            receivedAt,
+            _pathSafetyService);
         _senderName = senderName ?? string.Empty;
         _receivedAt = receivedAt;
         _projects = BuildProjectOptions(projectPaths, settings.SavedProjects, settings.LastSelectedProject);
@@ -164,7 +168,8 @@ internal sealed class ProjectSelectorForm : Form
             Text = _baseSuggestedName,
         };
         _finalNameTextBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-        _finalNameTextBox.TextChanged += (_, _) => NormalizeAndPreviewFinalName();
+        _finalNameTextBox.TextChanged += (_, _) => UpdateFinalNamePreview();
+        _finalNameTextBox.Leave += (_, _) => NormalizeAndPreviewFinalName();
 
         _finalNamePreviewLabel = new Label
         {
@@ -770,7 +775,11 @@ internal sealed class ProjectSelectorForm : Form
         }
 
         var senderToken = _pathSafetyService.SanitizeName(_senderName, "sender");
-        var current = _pathSafetyService.SanitizeName(_finalNameTextBox.Text, _baseSuggestedName);
+        var current = FileNameBaseNameNormalizer.NormalizeEditableBaseName(
+            _finalNameTextBox.Text,
+            _baseSuggestedName,
+            _receivedAt,
+            _pathSafetyService);
         var subjectPart = current;
         var newPrefix = senderToken + "_";
         var legacySuffix = "_-_" + senderToken;
@@ -805,7 +814,11 @@ internal sealed class ProjectSelectorForm : Form
             return;
         }
 
-        var finalName = _pathSafetyService.SanitizeName(_finalNameTextBox.Text, _baseSuggestedName);
+        var finalName = FileNameBaseNameNormalizer.NormalizeEditableBaseName(
+            _finalNameTextBox.Text,
+            _baseSuggestedName,
+            _receivedAt,
+            _pathSafetyService);
         SelectedFinalName = string.IsNullOrWhiteSpace(finalName) ? _baseSuggestedName : finalName;
         SelectedProjectPath = option.Path;
         SelectedSaveAsMsg = _saveAsMsgCheck.Checked;
@@ -824,7 +837,11 @@ internal sealed class ProjectSelectorForm : Form
         try
         {
             var original = _finalNameTextBox.Text;
-            var normalized = _pathSafetyService.SanitizeName(original, _baseSuggestedName);
+            var normalized = FileNameBaseNameNormalizer.NormalizeEditableBaseName(
+                original,
+                _baseSuggestedName,
+                _receivedAt,
+                _pathSafetyService);
             if (!string.Equals(original, normalized, StringComparison.Ordinal))
             {
                 var caret = _finalNameTextBox.SelectionStart;
@@ -842,7 +859,11 @@ internal sealed class ProjectSelectorForm : Form
 
     private void UpdateFinalNamePreview()
     {
-        var normalized = _pathSafetyService.SanitizeName(_finalNameTextBox.Text, _baseSuggestedName);
+        var normalized = FileNameBaseNameNormalizer.NormalizeEditableBaseName(
+            _finalNameTextBox.Text,
+            _baseSuggestedName,
+            _receivedAt,
+            _pathSafetyService);
         var extension = _saveAsMsgCheck.Checked ? ".msg" : ".txt";
         var preview = $"{_receivedAt:yyyyMMdd}_{normalized}{extension}";
         _finalNamePreviewLabel.Text = "Final file name preview: " + preview;

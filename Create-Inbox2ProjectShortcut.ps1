@@ -30,6 +30,7 @@ function Create-Shortcut {
     Write-Output "Created shortcut: $shortcutPath"
 }
 
-Create-Shortcut -Name "Inbox2Project Setup.lnk" -Args "" -Description "Run Inbox2Project setup (update, build, publish, install)"
+Create-Shortcut -Name "Inbox2Project Install Local.lnk" -Args " /installLocal" -Description "Update this PC: sync, build, test, publish, install, and reopen Outlook"
 Create-Shortcut -Name "Inbox2Project Build Only.lnk" -Args " /buildOnly" -Description "Run Inbox2Project setup (update + build only)"
 Create-Shortcut -Name "Inbox2Project Publish Only.lnk" -Args " /publishOnly" -Description "Run Inbox2Project setup (update, build, publish)"
+Create-Shortcut -Name "Inbox2Project Release.lnk" -Args " /release" -Description "Ship a release: bump version, build, test, publish, commit, and push"

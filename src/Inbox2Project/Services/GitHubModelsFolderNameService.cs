@@ -134,7 +134,7 @@ public sealed class GitHubModelsFolderNameService : IAiFolderNameService
                 new
                 {
                     role = "system",
-                    content = "Create one concise Windows-safe email file name. Return only the name, with no quotes or explanation. Use letters, numbers, spaces, underscores, periods, and dashes only. Keep the important subject meaning.",
+                    content = "Create one concise Windows-safe email file name base. Return only the base name, with no quotes or explanation. Do not include any file extension such as .docx, .pdf, .msg, or .txt. Use letters, numbers, spaces, underscores, periods, and dashes only. Keep the important subject meaning.",
                 },
                 new
                 {

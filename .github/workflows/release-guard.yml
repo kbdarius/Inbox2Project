@@ -1,0 +1,114 @@
+name: Release Guard
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build solution
+        run: dotnet build .\Inbox2Project.sln -c Release
+
+      - name: Run tests
+        run: dotnet test .\tests\Inbox2Project.Tests\Inbox2Project.Tests.csproj -c Release
+
+  version-bump-guard:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require bridge version bump for shipped code changes
+        shell: pwsh
+        run: |
+          $eventName = '${{ github.event_name }}'
+          if ($eventName -eq 'pull_request') {
+              $baseSha = '${{ github.event.pull_request.base.sha }}'
+              $headSha = '${{ github.event.pull_request.head.sha }}'
+          }
+          else {
+              $baseSha = '${{ github.event.before }}'
+              $headSha = '${{ github.sha }}'
+          }
+
+          if ([string]::IsNullOrWhiteSpace($baseSha) -or $baseSha -eq '0000000000000000000000000000000000000000') {
+              Write-Host 'No comparable base SHA found. Skipping version bump guard.'
+              exit 0
+          }
+
+          $changedFiles = git diff --name-only $baseSha $headSha
+          if (-not $changedFiles) {
+              Write-Host 'No changed files detected. Skipping version bump guard.'
+              exit 0
+          }
+
+          $watchedPrefixes = @(
+              'src/',
+              'Publish-OutlookVstoAddIn.ps1',
+              'Install-OutlookVstoAddIn.ps1',
+              'Uninstall-OutlookVstoAddIn.ps1',
+              'Setup-Inbox2Project.bat',
+              'Setup-Inbox2Project.ps1',
+              'Create-Inbox2ProjectShortcut.ps1'
+          )
+
+          $requiresVersionBump = $false
+          foreach ($file in $changedFiles) {
+              foreach ($prefix in $watchedPrefixes) {
+                  if ($file.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+                      $requiresVersionBump = $true
+                      break
+                  }
+              }
+
+              if ($requiresVersionBump) {
+                  break
+              }
+          }
+
+          if (-not $requiresVersionBump) {
+              Write-Host 'No shipped-code files changed. Version bump not required.'
+              exit 0
+          }
+
+          $versionFile = 'src/Inbox2Project.OutlookBridge/Inbox2Project.OutlookBridge.csproj'
+          if (-not ($changedFiles -contains $versionFile)) {
+              throw "Shipped-code files changed, but $versionFile was not updated."
+          }
+
+          $baseContent = git show "${baseSha}:${versionFile}"
+          $headContent = Get-Content -Raw $versionFile
+
+          [xml]$baseXml = $baseContent
+          [xml]$headXml = $headContent
+
+          $baseVersion = $baseXml.Project.PropertyGroup.Version
+          $headVersion = $headXml.Project.PropertyGroup.Version
+
+          if ([string]::IsNullOrWhiteSpace($baseVersion) -or [string]::IsNullOrWhiteSpace($headVersion)) {
+              throw 'Could not read bridge version values for comparison.'
+          }
+
+          if ($baseVersion.Trim() -eq $headVersion.Trim()) {
+              throw "Shipped-code files changed, but bridge version stayed at $($headVersion.Trim())."
+          }
+
+          Write-Host "Bridge version changed from $($baseVersion.Trim()) to $($headVersion.Trim())."
