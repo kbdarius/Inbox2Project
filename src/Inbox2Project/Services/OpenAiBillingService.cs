@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
+using System.Runtime.Versioning;
 using System.Text;
 using System.Text.Json;
 
@@ -86,17 +87,12 @@ public sealed class OpenAiBillingService
         }
 
         var adminKey = Unprotect(state.EncryptedAdminKey);
+        var baselineWasInitialized = false;
         if (state.BaselineUtc is null)
         {
             state.BaselineUtc = DateTimeOffset.UtcNow;
             WriteStoredState(state);
-            return new OpenAiBillingRefreshResult(
-                true,
-                state.StartingBalance,
-                0m,
-                state.StartingBalance,
-                state.BaselineUtc.Value,
-                "Baseline saved. Refresh again later to measure new spend.");
+            baselineWasInitialized = true;
         }
 
         var startTime = state.BaselineUtc.Value.ToUnixTimeSeconds();
@@ -132,7 +128,9 @@ public sealed class OpenAiBillingService
                 spent,
                 remaining,
                 state.BaselineUtc.Value,
-                $"Updated {state.LastRefreshedUtc.Value.ToLocalTime():g}");
+                baselineWasInitialized
+                    ? $"Baseline initialized and updated {state.LastRefreshedUtc.Value.ToLocalTime():g}"
+                    : $"Updated {state.LastRefreshedUtc.Value.ToLocalTime():g}");
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -205,6 +203,7 @@ public sealed class OpenAiBillingService
         return decimal.Round(total, 4);
     }
 
+    [SupportedOSPlatform("windows")]
     private static string Protect(string value)
     {
         var bytes = Encoding.UTF8.GetBytes(value);
@@ -212,6 +211,7 @@ public sealed class OpenAiBillingService
         return Convert.ToBase64String(protectedBytes);
     }
 
+    [SupportedOSPlatform("windows")]
     private static string Unprotect(string value)
     {
         var protectedBytes = Convert.FromBase64String(value);
