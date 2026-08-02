@@ -22,7 +22,7 @@ internal sealed class OpenAiApiKeySetupForm : Form
             Dock = DockStyle.Fill,
             Padding = new Padding(20),
             ColumnCount = 1,
-            RowCount = 8,
+            RowCount = 11,
             BackColor = System.Drawing.Color.White,
         };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
@@ -32,8 +32,14 @@ internal sealed class OpenAiApiKeySetupForm : Form
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38F));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 26F));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36F));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24F));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36F));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48F));
+
+        var billingService = new OpenAiBillingService();
+        var billingState = billingService.LoadState();
 
         var header = new Label
         {
@@ -89,6 +95,65 @@ internal sealed class OpenAiApiKeySetupForm : Form
             PlaceholderText = service.IsApiKeyConfigured ? "Enter a new key only to replace the saved key" : "sk-...",
         };
 
+        var adminKeyLabel = new Label
+        {
+            Dock = DockStyle.Fill,
+            Text = "Billing Admin API key (stored encrypted for this Windows user):",
+            TextAlign = System.Drawing.ContentAlignment.BottomLeft,
+        };
+
+        var adminKeyTextBox = new TextBox
+        {
+            Dock = DockStyle.Fill,
+            UseSystemPasswordChar = true,
+            BorderStyle = BorderStyle.FixedSingle,
+            PlaceholderText = billingState.IsAdminApiKeyConfigured ? "Enter a new Admin key only to replace the saved key" : "sk-admin-...",
+        };
+
+        var billingRow = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            Padding = new Padding(2, 4, 0, 0),
+        };
+        var balanceLabel = new Label
+        {
+            Text = "Starting balance ($):",
+            AutoSize = true,
+            Margin = new Padding(0, 7, 6, 0),
+        };
+        var balanceTextBox = new TextBox
+        {
+            Width = 88,
+            Height = 26,
+            Text = billingState.StartingBalance.ToString("0.00", System.Globalization.CultureInfo.CurrentCulture),
+            BorderStyle = BorderStyle.FixedSingle,
+            Margin = new Padding(0, 3, 8, 0),
+        };
+        var refreshBalanceButton = new Button
+        {
+            Text = "Refresh billing data",
+            Width = 140,
+            Height = 30,
+            Margin = new Padding(0, 1, 12, 0),
+        };
+        var billingStatusLabel = new Label
+        {
+            AutoSize = false,
+            Width = 310,
+            Height = 32,
+            ForeColor = System.Drawing.Color.FromArgb(55, 70, 84),
+            Text = billingState.LastRefreshedUtc is null
+                ? "Enter the Admin key, then refresh."
+                : $"Estimated remaining: ${Math.Max(0m, billingState.StartingBalance - billingState.SpentSinceBaseline):0.00} | Last updated {billingState.LastRefreshedUtc.Value.ToLocalTime():g}",
+            TextAlign = System.Drawing.ContentAlignment.MiddleLeft,
+        };
+        billingRow.Controls.Add(balanceLabel);
+        billingRow.Controls.Add(balanceTextBox);
+        billingRow.Controls.Add(refreshBalanceButton);
+        billingRow.Controls.Add(billingStatusLabel);
+
         var statusLabel = new Label
         {
             Dock = DockStyle.Fill,
@@ -138,6 +203,22 @@ internal sealed class OpenAiApiKeySetupForm : Form
                 }
 
                 service.SaveModelName(modelComboBox.SelectedItem?.ToString() ?? string.Empty);
+                if (!decimal.TryParse(balanceTextBox.Text, System.Globalization.NumberStyles.Currency, System.Globalization.CultureInfo.CurrentCulture, out var startingBalance)
+                    || startingBalance < 0)
+                {
+                    throw new InvalidOperationException("Enter a valid non-negative starting balance.");
+                }
+
+                if (string.Equals(adminKeyTextBox.Text, string.Empty, StringComparison.Ordinal) == false)
+                {
+                    billingService.SaveAdminApiKey(adminKeyTextBox.Text);
+                }
+
+                if (billingState.BaselineUtc is null || startingBalance != billingState.StartingBalance)
+                {
+                    billingService.SetStartingBalance(startingBalance);
+                }
+
                 DialogResult = DialogResult.OK;
                 Close();
             }
@@ -198,6 +279,49 @@ internal sealed class OpenAiApiKeySetupForm : Form
                 testButton.Enabled = true;
             }
         };
+        refreshBalanceButton.Click += async (_, _) =>
+        {
+            try
+            {
+                if (!decimal.TryParse(balanceTextBox.Text, System.Globalization.NumberStyles.Currency, System.Globalization.CultureInfo.CurrentCulture, out var startingBalance)
+                    || startingBalance < 0)
+                {
+                    throw new InvalidOperationException("Enter a valid non-negative starting balance.");
+                }
+
+                if (!string.IsNullOrWhiteSpace(adminKeyTextBox.Text))
+                {
+                    billingService.SaveAdminApiKey(adminKeyTextBox.Text);
+                }
+
+                billingState = billingService.LoadState();
+                if (billingState.BaselineUtc is null || startingBalance != billingState.StartingBalance)
+                {
+                    billingService.SetStartingBalance(startingBalance);
+                }
+
+                refreshBalanceButton.Enabled = false;
+                billingStatusLabel.ForeColor = System.Drawing.Color.FromArgb(32, 99, 155);
+                billingStatusLabel.Text = "Refreshing billing data...";
+                var result = await billingService.RefreshAsync();
+                billingState = billingService.LoadState();
+                billingStatusLabel.ForeColor = result.IsSuccess
+                    ? System.Drawing.Color.DarkGreen
+                    : System.Drawing.Color.DarkRed;
+                billingStatusLabel.Text = result.IsSuccess
+                    ? $"Estimated remaining: ${result.EstimatedRemaining:0.00} | Spent: ${result.SpentSinceBaseline:0.0000}"
+                    : result.Message;
+            }
+            catch (Exception exception)
+            {
+                billingStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
+                billingStatusLabel.Text = exception.Message;
+            }
+            finally
+            {
+                refreshBalanceButton.Enabled = true;
+            }
+        };
 
         buttons.Controls.Add(closeButton);
         buttons.Controls.Add(saveButton);
@@ -212,8 +336,11 @@ internal sealed class OpenAiApiKeySetupForm : Form
         layout.Controls.Add(modelComboBox, 0, 3);
         layout.Controls.Add(keyLabel, 0, 4);
         layout.Controls.Add(keyTextBox, 0, 5);
-        layout.Controls.Add(statusLabel, 0, 6);
-        layout.Controls.Add(buttons, 0, 7);
+        layout.Controls.Add(adminKeyLabel, 0, 6);
+        layout.Controls.Add(adminKeyTextBox, 0, 7);
+        layout.Controls.Add(billingRow, 0, 8);
+        layout.Controls.Add(statusLabel, 0, 9);
+        layout.Controls.Add(buttons, 0, 10);
         Controls.Add(layout);
 
         AcceptButton = saveButton;
