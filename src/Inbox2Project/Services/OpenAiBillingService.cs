@@ -190,13 +190,24 @@ public sealed class OpenAiBillingService
                 if (!result.TryGetProperty("amount", out var amount)
                     || !amount.TryGetProperty("currency", out var currency)
                     || !string.Equals(currency.GetString(), "usd", StringComparison.OrdinalIgnoreCase)
-                    || !amount.TryGetProperty("value", out var value)
-                    || !value.TryGetDecimal(out var decimalValue))
+                    || !amount.TryGetProperty("value", out var value))
                 {
                     continue;
                 }
 
-                total += decimalValue;
+                if (value.TryGetDecimal(out var decimalValue))
+                {
+                    total += decimalValue;
+                }
+                else if (value.ValueKind == JsonValueKind.String
+                    && decimal.TryParse(
+                        value.GetString(),
+                        NumberStyles.Any,
+                        CultureInfo.InvariantCulture,
+                        out var stringDecimalValue))
+                {
+                    total += stringDecimalValue;
+                }
             }
         }
 
