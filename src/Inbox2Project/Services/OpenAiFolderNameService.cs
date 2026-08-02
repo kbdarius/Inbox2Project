@@ -103,7 +103,13 @@ public sealed class OpenAiFolderNameService : IAiFolderNameService
 
         try
         {
-            using var request = CreateRequest(HttpMethod.Get, $"{ApiBaseUrl}/models/{supportedModel}", apiKey);
+            var payload = CreateNamingPayload(
+                supportedModel,
+                "Return only the word Connected.",
+                "Connection test.",
+                32);
+            using var request = CreateRequest(HttpMethod.Post, $"{ApiBaseUrl}/responses", apiKey);
+            request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
             using var response = await _httpClient.SendAsync(request, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
@@ -112,10 +118,10 @@ public sealed class OpenAiFolderNameService : IAiFolderNameService
 
             var message = (int)response.StatusCode switch
             {
-                401 => "API key rejected",
+                401 => "Saved API key rejected - replace it",
                 403 => "No account access",
                 404 => "Model unavailable",
-                429 => "Rate limit or billing limit",
+                429 => "Billing, quota, or rate limit reached",
                 _ => $"OpenAI returned HTTP {(int)response.StatusCode}",
             };
             return new OpenAiModelTestResult(supportedModel, false, message);
@@ -174,19 +180,11 @@ public sealed class OpenAiFolderNameService : IAiFolderNameService
             safeBody = safeBody[..MaxBodyCharacters];
         }
 
-        var payload = new Dictionary<string, object>
-        {
-            ["model"] = ModelName,
-            ["instructions"] = "Create one concise Windows-safe email file name base. Return only the base name, with no quotes or explanation. Do not include any file extension such as .docx, .pdf, .msg, or .txt. Use letters, numbers, spaces, underscores, periods, and dashes only. Keep the important subject meaning.",
-            ["input"] = $"Subject: {safeSubject}\nEmail excerpt: {safeBody}",
-            ["max_output_tokens"] = 96,
-        };
-
-        if (ModelName.StartsWith("gpt-5", StringComparison.OrdinalIgnoreCase))
-        {
-            payload["reasoning"] = new { effort = "minimal" };
-            payload["text"] = new { verbosity = "low" };
-        }
+        var payload = CreateNamingPayload(
+            ModelName,
+            "Create one concise Windows-safe email file name base. Return only the base name, with no quotes or explanation. Do not include any file extension such as .docx, .pdf, .msg, or .txt. Use letters, numbers, spaces, underscores, periods, and dashes only. Keep the important subject meaning.",
+            $"Subject: {safeSubject}\nEmail excerpt: {safeBody}",
+            96);
 
         using var request = CreateRequest(HttpMethod.Post, $"{ApiBaseUrl}/responses", apiKey);
         request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
@@ -222,6 +220,29 @@ public sealed class OpenAiFolderNameService : IAiFolderNameService
         var request = new HttpRequestMessage(method, url);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
         return request;
+    }
+
+    private static Dictionary<string, object> CreateNamingPayload(
+        string modelName,
+        string instructions,
+        string input,
+        int maxOutputTokens)
+    {
+        var payload = new Dictionary<string, object>
+        {
+            ["model"] = modelName,
+            ["instructions"] = instructions,
+            ["input"] = input,
+            ["max_output_tokens"] = maxOutputTokens,
+        };
+
+        if (modelName.StartsWith("gpt-5", StringComparison.OrdinalIgnoreCase))
+        {
+            payload["reasoning"] = new { effort = "minimal" };
+            payload["text"] = new { verbosity = "low" };
+        }
+
+        return payload;
     }
 
     private static string? GetApiKey()

@@ -27,7 +27,6 @@ internal sealed class ProjectSelectorForm : Form
     private readonly TabControl _tabs;
     private IAiFolderNameService _aiFolderNameService;
     private readonly OpenAiFolderNameService _openAiService;
-    private readonly GitHubModelsFolderNameService _gitHubModelsService;
 
     private readonly ComboBox _projectCombo;
     private readonly Label _selectedPathLabel;
@@ -61,16 +60,12 @@ internal sealed class ProjectSelectorForm : Form
         string suggestedBaseName,
         string senderName,
         DateTimeOffset receivedAt,
-        OpenAiFolderNameService openAiService,
-        GitHubModelsFolderNameService gitHubModelsService)
+        OpenAiFolderNameService openAiService)
     {
         _settingsService = settingsService;
         _pathSafetyService = pathSafetyService;
         _openAiService = openAiService;
-        _gitHubModelsService = gitHubModelsService;
-        _aiFolderNameService = settings.AiProvider == AiNamingProvider.GitHubModels
-            ? (IAiFolderNameService)gitHubModelsService
-            : openAiService;
+        _aiFolderNameService = openAiService;
         _baseSuggestedName = FileNameBaseNameNormalizer.NormalizeEditableBaseName(
             suggestedBaseName,
             "untitled",
@@ -208,12 +203,10 @@ internal sealed class ProjectSelectorForm : Form
             DropDownStyle = ComboBoxStyle.DropDownList,
         };
         _aiProviderCombo.Items.Add("No AI naming");
-        _aiProviderCombo.Items.Add("OpenAI API (gpt-5-nano)");
-        _aiProviderCombo.Items.Add("GitHub Models via GitHub PAT (gpt-4o-mini)");
+        _aiProviderCombo.Items.Add("OpenAI API (choose model in setup)");
         _aiProviderCombo.SelectedIndex = settings.AiProvider switch
         {
             AiNamingProvider.OpenAi => 1,
-            AiNamingProvider.GitHubModels => 2,
             _ => 0,
         };
         _aiProviderCombo.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
@@ -243,24 +236,9 @@ internal sealed class ProjectSelectorForm : Form
         _aiSetupLink.Links.Add(0, _aiSetupLink.Text.Length);
         _aiSetupLink.LinkClicked += async (_, _) =>
         {
-            if (_aiFolderNameService is GitHubModelsFolderNameService ghService)
-            {
-                using var form = new GitHubModelsApiKeySetupForm(ghService);
-                form.ShowDialog(this);
-                await UpdateAiStatusAsync();
-                return;
-            }
-
-            if (_aiFolderNameService is OpenAiFolderNameService openAiSvc)
-            {
-                using var form = new OpenAiApiKeySetupForm(openAiSvc);
-                form.ShowDialog(this);
-                await UpdateAiStatusAsync();
-                return;
-            }
-
-            System.Diagnostics.Process.Start(
-                new System.Diagnostics.ProcessStartInfo(_aiFolderNameService.DownloadUrl) { UseShellExecute = true });
+            using var form = new OpenAiApiKeySetupForm(_openAiService);
+            form.ShowDialog(this);
+            await UpdateAiStatusAsync();
         };
 
         _saveAsMsgCheck = new CheckBox
@@ -670,13 +648,10 @@ internal sealed class ProjectSelectorForm : Form
         var selectedProvider = _aiProviderCombo.SelectedIndex switch
         {
             1 => AiNamingProvider.OpenAi,
-            2 => AiNamingProvider.GitHubModels,
             _ => AiNamingProvider.None,
         };
 
-        _aiFolderNameService = selectedProvider == AiNamingProvider.GitHubModels
-            ? (IAiFolderNameService)_gitHubModelsService
-            : _openAiService;
+        _aiFolderNameService = _openAiService;
 
         if (selectedProvider == AiNamingProvider.None)
         {
@@ -686,8 +661,7 @@ internal sealed class ProjectSelectorForm : Form
             return;
         }
 
-        bool isGitHub = selectedProvider == AiNamingProvider.GitHubModels;
-        _aiSetupLink.Text = isGitHub ? "Set up or update GitHub PAT" : "Set up or update OpenAI API key";
+        _aiSetupLink.Text = "Set up OpenAI API key and model";
         _aiSetupLink.Links.Clear();
         _aiSetupLink.Links.Add(0, _aiSetupLink.Text.Length);
 
@@ -696,9 +670,7 @@ internal sealed class ProjectSelectorForm : Form
         if (!setupState.IsOllamaInstalled)
         {
             _aiStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
-            _aiStatusLabel.Text = isGitHub
-                ? "Add a GitHub PAT to enable AI naming via GitHub Models."
-                : "Add an OpenAI API key to enable AI naming.";
+            _aiStatusLabel.Text = "Add an OpenAI API key to enable AI naming.";
             _aiSetupLink.Visible = true;
             return;
         }
@@ -706,14 +678,7 @@ internal sealed class ProjectSelectorForm : Form
         if (!setupState.IsServerAvailable)
         {
             _aiStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
-            if (isGitHub)
-            {
-                _aiStatusLabel.Text = "GitHub Models service is not responding. Check your internet connection or try again later.";
-            }
-            else
-            {
-                _aiStatusLabel.Text = "The OpenAI service could not be reached. Check the internet connection and try again.";
-            }
+            _aiStatusLabel.Text = "The OpenAI service could not be reached. Check the internet connection and try again.";
             _aiSetupLink.Visible = true;
             return;
         }
@@ -721,22 +686,13 @@ internal sealed class ProjectSelectorForm : Form
         if (!setupState.IsModelAvailable)
         {
             _aiStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
-            if (isGitHub)
-            {
-                _aiStatusLabel.Text = "The GitHub PAT was rejected. Verify the token is valid, has not expired, and try again.";
-            }
-            else
-            {
-                _aiStatusLabel.Text = $"The API key was not accepted or does not have access to {_openAiService.ModelName}.";
-            }
+            _aiStatusLabel.Text = $"The API key was rejected or does not have access to {_openAiService.ModelName}. Open setup to replace the key and test both models.";
             _aiSetupLink.Visible = true;
             return;
         }
 
         _aiStatusLabel.ForeColor = System.Drawing.Color.DarkGreen;
-        _aiStatusLabel.Text = isGitHub
-            ? $"GitHub Models naming is ready ({setupState.SelectedModelName ?? _aiFolderNameService.ModelName})."
-            : $"OpenAI naming is ready ({setupState.SelectedModelName ?? _aiFolderNameService.ModelName}).";
+        _aiStatusLabel.Text = $"OpenAI naming is ready ({setupState.SelectedModelName ?? _aiFolderNameService.ModelName}).";
         _aiSetupLink.Visible = true;
     }
 
@@ -745,7 +701,6 @@ internal sealed class ProjectSelectorForm : Form
         var provider = _aiProviderCombo.SelectedIndex switch
         {
             1 => AiNamingProvider.OpenAi,
-            2 => AiNamingProvider.GitHubModels,
             _ => AiNamingProvider.None,
         };
         await _settingsService.SaveAiProviderAsync(provider);

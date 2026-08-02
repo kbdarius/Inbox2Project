@@ -152,6 +152,13 @@ public sealed class SettingsService : ISettingsService
             settings.LastSelectedProject = null;
         }
 
+        // GitHub Models support was retired. Move existing users to OpenAI so
+        // their AI naming preference remains enabled after upgrading.
+        if ((int)settings.AiProvider == 2)
+        {
+            settings.AiProvider = AiNamingProvider.OpenAi;
+        }
+
         // Migrate legacy UseLocalAiFolderNaming -> AiProvider
         if (settings.AiProvider == AiNamingProvider.None && settings.UseLocalAiFolderNaming)
         {

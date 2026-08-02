@@ -7,17 +7,14 @@ public sealed class BridgeProjectSelectorUi : IProjectSelectorUi
 {
     private readonly ISettingsService _settingsService;
     private readonly OpenAiFolderNameService _openAiService;
-    private readonly GitHubModelsFolderNameService _gitHubModelsService;
     private readonly IPathSafetyService _pathSafetyService;
 
     public BridgeProjectSelectorUi(
         ISettingsService settingsService,
-        OpenAiFolderNameService openAiService,
-        GitHubModelsFolderNameService gitHubModelsService)
+        OpenAiFolderNameService openAiService)
     {
         _settingsService = settingsService;
         _openAiService = openAiService;
-        _gitHubModelsService = gitHubModelsService;
         _pathSafetyService = new PathSafetyService();
     }
 
@@ -30,7 +27,7 @@ public sealed class BridgeProjectSelectorUi : IProjectSelectorUi
         CancellationToken cancellationToken = default)
     {
         var settings = await _settingsService.LoadAsync(cancellationToken);
-        using var form = new ProjectSelectorForm(_settingsService, _pathSafetyService, projectPaths, settings, suggestedProjectPath, suggestedBaseName, senderName, receivedAt, _openAiService, _gitHubModelsService);
+        using var form = new ProjectSelectorForm(_settingsService, _pathSafetyService, projectPaths, settings, suggestedProjectPath, suggestedBaseName, senderName, receivedAt, _openAiService);
         var result = form.ShowDialog();
         if (result == DialogResult.OK && !string.IsNullOrWhiteSpace(form.SelectedProjectPath))
         {

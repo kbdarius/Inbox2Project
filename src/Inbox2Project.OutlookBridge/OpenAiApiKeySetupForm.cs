@@ -7,8 +7,8 @@ internal sealed class OpenAiApiKeySetupForm : Form
     public OpenAiApiKeySetupForm(OpenAiFolderNameService service)
     {
         Text = AppInfo.WindowTitle("OpenAI API Setup");
-        ClientSize = new System.Drawing.Size(620, 300);
-        MinimumSize = new System.Drawing.Size(540, 330);
+        ClientSize = new System.Drawing.Size(760, 390);
+        MinimumSize = new System.Drawing.Size(700, 420);
         FormBorderStyle = FormBorderStyle.Sizable;
         StartPosition = FormStartPosition.CenterParent;
         MaximizeBox = false;
@@ -22,12 +22,14 @@ internal sealed class OpenAiApiKeySetupForm : Form
             Dock = DockStyle.Fill,
             Padding = new Padding(20),
             ColumnCount = 1,
-            RowCount = 6,
+            RowCount = 8,
             BackColor = System.Drawing.Color.White,
         };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40F));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 54F));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52F));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24F));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38F));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 26F));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36F));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
@@ -47,10 +49,30 @@ internal sealed class OpenAiApiKeySetupForm : Form
         var explanation = new Label
         {
             Dock = DockStyle.Fill,
-            Text = "Inbox2Project uses gpt-5-nano for short file names. API billing is separate from ChatGPT, and the key stays in your Windows user environment.",
+            Text = "Choose a low-cost OpenAI model for short file names. Your model choice and API key are saved only for this Windows user.",
             ForeColor = System.Drawing.Color.FromArgb(55, 70, 84),
             Padding = new Padding(2, 8, 2, 0),
         };
+
+        var modelLabel = new Label
+        {
+            Dock = DockStyle.Fill,
+            Text = "OpenAI model:",
+            TextAlign = System.Drawing.ContentAlignment.BottomLeft,
+        };
+
+        var modelComboBox = new ComboBox
+        {
+            Dock = DockStyle.Fill,
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            FlatStyle = FlatStyle.System,
+        };
+        modelComboBox.Items.AddRange(OpenAiFolderNameService.SupportedModelNames.Cast<object>().ToArray());
+        modelComboBox.SelectedItem = service.ModelName;
+        if (modelComboBox.SelectedIndex < 0)
+        {
+            modelComboBox.SelectedIndex = 0;
+        }
 
         var keyLabel = new Label
         {
@@ -88,8 +110,8 @@ internal sealed class OpenAiApiKeySetupForm : Form
         var closeButton = new Button { Text = "Close", Width = 88, Height = 34 };
         var saveButton = new Button
         {
-            Text = "Save Key",
-            Width = 100,
+            Text = "Save Settings",
+            Width = 116,
             Height = 34,
             BackColor = System.Drawing.Color.FromArgb(0, 112, 120),
             ForeColor = System.Drawing.Color.White,
@@ -98,13 +120,23 @@ internal sealed class OpenAiApiKeySetupForm : Form
         };
         var clearButton = new Button { Text = "Clear Saved Key", Width = 126, Height = 34 };
         var createKeyButton = new Button { Text = "Open API Keys Page", Width = 142, Height = 34 };
+        var testButton = new Button { Text = "Test Models", Width = 112, Height = 34 };
 
         closeButton.Click += (_, _) => Close();
         saveButton.Click += (_, _) =>
         {
             try
             {
-                service.SaveApiKey(keyTextBox.Text);
+                if (!string.IsNullOrWhiteSpace(keyTextBox.Text))
+                {
+                    service.SaveApiKey(keyTextBox.Text);
+                }
+                else if (!service.IsApiKeyConfigured)
+                {
+                    throw new InvalidOperationException("Enter an OpenAI API key before saving.");
+                }
+
+                service.SaveModelName(modelComboBox.SelectedItem?.ToString() ?? string.Empty);
                 DialogResult = DialogResult.OK;
                 Close();
             }
@@ -123,18 +155,61 @@ internal sealed class OpenAiApiKeySetupForm : Form
         };
         createKeyButton.Click += (_, _) => System.Diagnostics.Process.Start(
             new System.Diagnostics.ProcessStartInfo(service.DownloadUrl) { UseShellExecute = true });
+        testButton.Click += async (_, _) =>
+        {
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(keyTextBox.Text))
+                {
+                    service.SaveApiKey(keyTextBox.Text);
+                }
+
+                if (!service.IsApiKeyConfigured)
+                {
+                    throw new InvalidOperationException("Enter and save an OpenAI API key before testing.");
+                }
+
+                testButton.Enabled = false;
+                statusLabel.ForeColor = System.Drawing.Color.FromArgb(32, 99, 155);
+                statusLabel.Text = "Testing access to each model...";
+
+                var results = new List<OpenAiModelTestResult>();
+                foreach (var modelName in OpenAiFolderNameService.SupportedModelNames)
+                {
+                    results.Add(await service.TestModelAsync(modelName));
+                }
+
+                statusLabel.ForeColor = results.All(result => result.IsConnected)
+                    ? System.Drawing.Color.DarkGreen
+                    : System.Drawing.Color.DarkRed;
+                statusLabel.Text = string.Join("   |   ", results.Select(result =>
+                    $"{result.ModelName}: {result.Message}"));
+            }
+            catch (Exception exception)
+            {
+                statusLabel.ForeColor = System.Drawing.Color.DarkRed;
+                statusLabel.Text = exception.Message;
+            }
+            finally
+            {
+                testButton.Enabled = true;
+            }
+        };
 
         buttons.Controls.Add(closeButton);
         buttons.Controls.Add(saveButton);
+        buttons.Controls.Add(testButton);
         buttons.Controls.Add(clearButton);
         buttons.Controls.Add(createKeyButton);
 
         layout.Controls.Add(header, 0, 0);
         layout.Controls.Add(explanation, 0, 1);
-        layout.Controls.Add(keyLabel, 0, 2);
-        layout.Controls.Add(keyTextBox, 0, 3);
-        layout.Controls.Add(statusLabel, 0, 4);
-        layout.Controls.Add(buttons, 0, 5);
+        layout.Controls.Add(modelLabel, 0, 2);
+        layout.Controls.Add(modelComboBox, 0, 3);
+        layout.Controls.Add(keyLabel, 0, 4);
+        layout.Controls.Add(keyTextBox, 0, 5);
+        layout.Controls.Add(statusLabel, 0, 6);
+        layout.Controls.Add(buttons, 0, 7);
         Controls.Add(layout);
 
         AcceptButton = saveButton;
