@@ -727,7 +727,7 @@ internal sealed class ProjectSelectorForm : Form
             }
             else
             {
-                _aiStatusLabel.Text = "The API key was not accepted or does not have access to gpt-5-nano.";
+                _aiStatusLabel.Text = $"The API key was not accepted or does not have access to {_openAiService.ModelName}.";
             }
             _aiSetupLink.Visible = true;
             return;

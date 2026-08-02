@@ -7,7 +7,14 @@ namespace Inbox2Project.Services;
 public sealed class OpenAiFolderNameService : IAiFolderNameService
 {
     public const string ApiKeyEnvironmentVariable = "OPENAI_API_KEY";
+    public const string ModelEnvironmentVariable = "INBOX2PROJECT_OPENAI_MODEL";
     public const string DefaultModelName = "gpt-5-nano";
+    public static IReadOnlyList<string> SupportedModelNames { get; } = new[]
+    {
+        DefaultModelName,
+        "gpt-4o-mini",
+    };
+
     private const string ApiBaseUrl = "https://api.openai.com/v1";
     private const string ApiKeysUrl = "https://platform.openai.com/api-keys";
     private const int MaxBodyCharacters = 1200;
@@ -19,7 +26,22 @@ public sealed class OpenAiFolderNameService : IAiFolderNameService
         _httpClient = httpClient;
     }
 
-    public string ModelName => DefaultModelName;
+    public string ModelName
+    {
+        get
+        {
+            var configuredModel = Environment.GetEnvironmentVariable(
+                    ModelEnvironmentVariable,
+                    EnvironmentVariableTarget.Process)
+                ?? Environment.GetEnvironmentVariable(
+                    ModelEnvironmentVariable,
+                    EnvironmentVariableTarget.User);
+
+            return SupportedModelNames.FirstOrDefault(model =>
+                       string.Equals(model, configuredModel, StringComparison.OrdinalIgnoreCase))
+                   ?? DefaultModelName;
+        }
+    }
 
     public string DownloadUrl => ApiKeysUrl;
 
@@ -41,6 +63,71 @@ public sealed class OpenAiFolderNameService : IAiFolderNameService
     {
         Environment.SetEnvironmentVariable(ApiKeyEnvironmentVariable, null, EnvironmentVariableTarget.User);
         Environment.SetEnvironmentVariable(ApiKeyEnvironmentVariable, null, EnvironmentVariableTarget.Process);
+    }
+
+    public void SaveModelName(string modelName)
+    {
+        var supportedModel = SupportedModelNames.FirstOrDefault(model =>
+            string.Equals(model, modelName?.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (supportedModel is null)
+        {
+            throw new ArgumentException("Select a supported OpenAI model.", nameof(modelName));
+        }
+
+        Environment.SetEnvironmentVariable(
+            ModelEnvironmentVariable,
+            supportedModel,
+            EnvironmentVariableTarget.User);
+        Environment.SetEnvironmentVariable(
+            ModelEnvironmentVariable,
+            supportedModel,
+            EnvironmentVariableTarget.Process);
+    }
+
+    public async Task<OpenAiModelTestResult> TestModelAsync(
+        string modelName,
+        CancellationToken cancellationToken = default)
+    {
+        var supportedModel = SupportedModelNames.FirstOrDefault(model =>
+            string.Equals(model, modelName?.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (supportedModel is null)
+        {
+            return new OpenAiModelTestResult(modelName, false, "Unsupported model name.");
+        }
+
+        var apiKey = GetApiKey();
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            return new OpenAiModelTestResult(supportedModel, false, "Add an API key first.");
+        }
+
+        try
+        {
+            using var request = CreateRequest(HttpMethod.Get, $"{ApiBaseUrl}/models/{supportedModel}", apiKey);
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                return new OpenAiModelTestResult(supportedModel, true, "Connected");
+            }
+
+            var message = (int)response.StatusCode switch
+            {
+                401 => "API key rejected",
+                403 => "No account access",
+                404 => "Model unavailable",
+                429 => "Rate limit or billing limit",
+                _ => $"OpenAI returned HTTP {(int)response.StatusCode}",
+            };
+            return new OpenAiModelTestResult(supportedModel, false, message);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return new OpenAiModelTestResult(supportedModel, false, "Connection timed out");
+        }
+        catch (HttpRequestException)
+        {
+            return new OpenAiModelTestResult(supportedModel, false, "Could not reach OpenAI");
+        }
     }
 
     public async Task<OllamaSetupState> GetSetupStateAsync(CancellationToken cancellationToken = default)
@@ -87,15 +174,19 @@ public sealed class OpenAiFolderNameService : IAiFolderNameService
             safeBody = safeBody[..MaxBodyCharacters];
         }
 
-        var payload = new
+        var payload = new Dictionary<string, object>
         {
-            model = ModelName,
-            instructions = "Create one concise Windows-safe email file name base. Return only the base name, with no quotes or explanation. Do not include any file extension such as .docx, .pdf, .msg, or .txt. Use letters, numbers, spaces, underscores, periods, and dashes only. Keep the important subject meaning.",
-            input = $"Subject: {safeSubject}\nEmail excerpt: {safeBody}",
-            reasoning = new { effort = "minimal" },
-            text = new { verbosity = "low" },
-            max_output_tokens = 96,
+            ["model"] = ModelName,
+            ["instructions"] = "Create one concise Windows-safe email file name base. Return only the base name, with no quotes or explanation. Do not include any file extension such as .docx, .pdf, .msg, or .txt. Use letters, numbers, spaces, underscores, periods, and dashes only. Keep the important subject meaning.",
+            ["input"] = $"Subject: {safeSubject}\nEmail excerpt: {safeBody}",
+            ["max_output_tokens"] = 96,
         };
+
+        if (ModelName.StartsWith("gpt-5", StringComparison.OrdinalIgnoreCase))
+        {
+            payload["reasoning"] = new { effort = "minimal" };
+            payload["text"] = new { verbosity = "low" };
+        }
 
         using var request = CreateRequest(HttpMethod.Post, $"{ApiBaseUrl}/responses", apiKey);
         request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
@@ -180,3 +271,5 @@ public sealed class OpenAiFolderNameService : IAiFolderNameService
         return string.IsNullOrWhiteSpace(firstLine) ? null : firstLine;
     }
 }
+
+public sealed record OpenAiModelTestResult(string ModelName, bool IsConnected, string Message);
