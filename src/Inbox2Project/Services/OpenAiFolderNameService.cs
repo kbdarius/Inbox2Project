@@ -19,6 +19,7 @@ public sealed class OpenAiFolderNameService : IAiFolderNameService
 
     private const string ApiBaseUrl = "https://api.openai.com/v1";
     private const string ApiKeysUrl = "https://platform.openai.com/api-keys";
+    private const string BillingCreditsUrl = "https://platform.openai.com/settings/organization/billing/credit-grants";
     private const int MaxBodyCharacters = 1200;
 
     private readonly HttpClient _httpClient;
@@ -46,6 +47,8 @@ public sealed class OpenAiFolderNameService : IAiFolderNameService
     }
 
     public string DownloadUrl => ApiKeysUrl;
+
+    public string BillingUrl => BillingCreditsUrl;
 
     public bool IsApiKeyConfigured => !string.IsNullOrWhiteSpace(GetApiKey());
 

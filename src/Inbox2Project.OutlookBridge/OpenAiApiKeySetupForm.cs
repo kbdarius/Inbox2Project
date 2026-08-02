@@ -107,20 +107,21 @@ internal sealed class OpenAiApiKeySetupForm : Form
             Padding = new Padding(0, 6, 0, 0),
         };
 
-        var closeButton = new Button { Text = "Close", Width = 88, Height = 34 };
+        var closeButton = new Button { Text = "Close", Width = 78, Height = 34 };
         var saveButton = new Button
         {
             Text = "Save Settings",
-            Width = 116,
+            Width = 108,
             Height = 34,
             BackColor = System.Drawing.Color.FromArgb(0, 112, 120),
             ForeColor = System.Drawing.Color.White,
             FlatStyle = FlatStyle.Flat,
             UseVisualStyleBackColor = false,
         };
-        var clearButton = new Button { Text = "Clear Saved Key", Width = 126, Height = 34 };
-        var createKeyButton = new Button { Text = "Open API Keys Page", Width = 142, Height = 34 };
-        var testButton = new Button { Text = "Test Models", Width = 112, Height = 34 };
+        var clearButton = new Button { Text = "Clear Key", Width = 92, Height = 34 };
+        var createKeyButton = new Button { Text = "API Keys Page", Width = 112, Height = 34 };
+        var billingButton = new Button { Text = "Check API Balance", Width = 126, Height = 34 };
+        var testButton = new Button { Text = "Test Models", Width = 104, Height = 34 };
 
         closeButton.Click += (_, _) => Close();
         saveButton.Click += (_, _) =>
@@ -155,6 +156,8 @@ internal sealed class OpenAiApiKeySetupForm : Form
         };
         createKeyButton.Click += (_, _) => System.Diagnostics.Process.Start(
             new System.Diagnostics.ProcessStartInfo(service.DownloadUrl) { UseShellExecute = true });
+        billingButton.Click += (_, _) => System.Diagnostics.Process.Start(
+            new System.Diagnostics.ProcessStartInfo(service.BillingUrl) { UseShellExecute = true });
         testButton.Click += async (_, _) =>
         {
             try
@@ -201,6 +204,7 @@ internal sealed class OpenAiApiKeySetupForm : Form
         buttons.Controls.Add(testButton);
         buttons.Controls.Add(clearButton);
         buttons.Controls.Add(createKeyButton);
+        buttons.Controls.Add(billingButton);
 
         layout.Controls.Add(header, 0, 0);
         layout.Controls.Add(explanation, 0, 1);
