@@ -195,7 +195,8 @@ public sealed class OpenAiBillingService
                     continue;
                 }
 
-                if (value.TryGetDecimal(out var decimalValue))
+                if (value.ValueKind == JsonValueKind.Number
+                    && value.TryGetDecimal(out var decimalValue))
                 {
                     total += decimalValue;
                 }
