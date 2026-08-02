@@ -7,8 +7,8 @@ internal sealed class OpenAiApiKeySetupForm : Form
     public OpenAiApiKeySetupForm(OpenAiFolderNameService service)
     {
         Text = AppInfo.WindowTitle("OpenAI API Setup");
-        ClientSize = new System.Drawing.Size(760, 390);
-        MinimumSize = new System.Drawing.Size(700, 420);
+        ClientSize = new System.Drawing.Size(760, 460);
+        MinimumSize = new System.Drawing.Size(700, 490);
         FormBorderStyle = FormBorderStyle.Sizable;
         StartPosition = FormStartPosition.CenterParent;
         MaximizeBox = false;
@@ -158,6 +158,7 @@ internal sealed class OpenAiApiKeySetupForm : Form
         {
             Dock = DockStyle.Fill,
             ForeColor = service.IsApiKeyConfigured ? System.Drawing.Color.DarkGreen : System.Drawing.Color.DimGray,
+            AutoEllipsis = true,
             Text = service.IsApiKeyConfigured
                 ? "A key is configured for this Windows user. Save a new key to replace it."
                 : "Create an API key on the OpenAI platform, then paste it above.",
@@ -266,7 +267,7 @@ internal sealed class OpenAiApiKeySetupForm : Form
                 statusLabel.ForeColor = results.All(result => result.IsConnected)
                     ? System.Drawing.Color.DarkGreen
                     : System.Drawing.Color.DarkRed;
-                statusLabel.Text = string.Join("   |   ", results.Select(result =>
+                statusLabel.Text = "Model tests: " + string.Join("   |   ", results.Select(result =>
                     $"{result.ModelName}: {result.Message}"));
             }
             catch (Exception exception)
