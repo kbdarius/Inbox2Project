@@ -9,9 +9,11 @@ public sealed class OpenAiFolderNameService : IAiFolderNameService
     public const string ApiKeyEnvironmentVariable = "OPENAI_API_KEY";
     public const string ModelEnvironmentVariable = "INBOX2PROJECT_OPENAI_MODEL";
     public const string DefaultModelName = "gpt-5-nano";
+    public const string LunaModelName = "gpt-5.6-luna";
     public static IReadOnlyList<string> SupportedModelNames { get; } = new[]
     {
         DefaultModelName,
+        LunaModelName,
         "gpt-4o-mini",
     };
 
@@ -238,8 +240,11 @@ public sealed class OpenAiFolderNameService : IAiFolderNameService
 
         if (modelName.StartsWith("gpt-5", StringComparison.OrdinalIgnoreCase))
         {
-            payload["reasoning"] = new { effort = "minimal" };
             payload["text"] = new { verbosity = "low" };
+            if (!string.Equals(modelName, LunaModelName, StringComparison.OrdinalIgnoreCase))
+            {
+                payload["reasoning"] = new { effort = "minimal" };
+            }
         }
 
         return payload;
