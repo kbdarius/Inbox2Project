@@ -12,7 +12,7 @@ In **Classic Outlook for Windows**, right-clicking one selected email shows **Sa
 - The current installer supports **64-bit Outlook only**.
 - The add-in registration is per Windows user. Install it while signed in as the person who will use it.
 - Administrator elevation is required for COM registration. The user must approve the Windows UAC prompt.
-- Use a permanent local checkout such as `C:\Tools\Inbox2Project`. Do not move or delete it after installation; Outlook's COM registration points to the published DLL by its full path.
+- Use a permanent local checkout such as `C:\Users\dariusk\TOOLS\Inbox2Project`. Do not move or delete it after installation; Outlook's COM registration points to the published DLL by its full path.
 - The add-in is registered for Classic Outlook as a whole, so it is available in every Classic Outlook profile belonging to the same Windows user.
 
 ## 1. Record the starting state
@@ -65,10 +65,10 @@ At least one SDK beginning with `8.` must be listed. If a prerequisite is missin
 Use a permanent local directory. For a fresh installation:
 
 ```powershell
-New-Item -ItemType Directory -Path 'C:\Tools' -Force | Out-Null
-Set-Location 'C:\Tools'
+New-Item -ItemType Directory -Path 'C:\Users\dariusk\TOOLS' -Force | Out-Null
+Set-Location 'C:\Users\dariusk\TOOLS'
 git clone https://github.com/kbdarius/Inbox2Project.git
-Set-Location 'C:\Tools\Inbox2Project'
+Set-Location 'C:\Users\dariusk\TOOLS\Inbox2Project'
 git switch main
 git pull --ff-only origin main
 ```
@@ -76,7 +76,7 @@ git pull --ff-only origin main
 For an existing checkout:
 
 ```powershell
-Set-Location 'C:\Tools\Inbox2Project'
+Set-Location 'C:\Users\dariusk\TOOLS\Inbox2Project'
 git status --short
 git switch main
 git pull --ff-only origin main
@@ -87,7 +87,7 @@ If `git status --short` reports local changes, do not discard or overwrite them.
 ## 4. Build and validate the source
 
 ```powershell
-Set-Location 'C:\Tools\Inbox2Project'
+Set-Location 'C:\Users\dariusk\TOOLS\Inbox2Project'
 dotnet build .\Inbox2Project.sln -c Release
 ```
 
@@ -104,14 +104,14 @@ dotnet run --project .\src\Inbox2Project.DevHarness -- attachments-yes
 ## 5. Publish the Outlook add-in and bridge
 
 ```powershell
-Set-Location 'C:\Tools\Inbox2Project'
+Set-Location 'C:\Users\dariusk\TOOLS\Inbox2Project'
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Publish-OutlookVstoAddIn.ps1
 ```
 
 Confirm these two primary files exist:
 
 ```powershell
-$published = 'C:\Tools\Inbox2Project\artifacts\outlook-vsto-addin'
+$published = 'C:\Users\dariusk\TOOLS\Inbox2Project\artifacts\outlook-vsto-addin'
 Test-Path "$published\Inbox2Project.OutlookVstoAddIn.dll"
 Test-Path "$published\Inbox2Project.OutlookBridge.exe"
 ```
@@ -133,7 +133,7 @@ If an Outlook process remains, do not force-close it until the user confirms the
 Run the installer from the user's normal PowerShell session. This opens a UAC prompt that the user must approve:
 
 ```powershell
-$published = 'C:\Tools\Inbox2Project\artifacts\outlook-vsto-addin'
+$published = 'C:\Users\dariusk\TOOLS\Inbox2Project\artifacts\outlook-vsto-addin'
 $installer = Join-Path $published 'Install-OutlookVstoAddIn.ps1'
 $arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$installer`" -AddInDirectory `"$published`""
 Start-Process powershell.exe -Verb RunAs -ArgumentList $arguments -Wait
@@ -166,7 +166,7 @@ Expected values:
 Also verify that the registered files still exist in:
 
 ```text
-C:\Tools\Inbox2Project\artifacts\outlook-vsto-addin
+C:\Users\dariusk\TOOLS\Inbox2Project\artifacts\outlook-vsto-addin
 ```
 
 ## 9. Start and test Classic Outlook
@@ -284,7 +284,7 @@ Close Outlook, rerun the elevated installer, and restart Outlook. The installer 
 Keep the same permanent checkout path:
 
 ```powershell
-Set-Location 'C:\Tools\Inbox2Project'
+Set-Location 'C:\Users\dariusk\TOOLS\Inbox2Project'
 git status --short
 git pull --ff-only origin main
 dotnet build .\Inbox2Project.sln -c Release
@@ -298,7 +298,7 @@ Then close Outlook and rerun the elevated installation command from step 7. Rest
 Save drafts and close Outlook. Then run the repository's uninstall script from an elevated PowerShell window:
 
 ```powershell
-$repository = 'C:\Tools\Inbox2Project'
+$repository = 'C:\Users\dariusk\TOOLS\Inbox2Project'
 $published = Join-Path $repository 'artifacts\outlook-vsto-addin'
 $uninstaller = Join-Path $repository 'Uninstall-OutlookVstoAddIn.ps1'
 $arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$uninstaller`" -AddInDirectory `"$published`""
