@@ -20,6 +20,10 @@ public interface ISettingsService
 
     Task RemoveProjectAsync(string projectPath, CancellationToken cancellationToken = default);
 
+    Task<SavedProjectDefinition> AddSubprojectAsync(string mainProjectPath, string subprojectName, CancellationToken cancellationToken = default);
+
+    Task RemoveSubprojectAsync(string mainProjectPath, string subprojectName, CancellationToken cancellationToken = default);
+
     string DefaultBackupCsvPath { get; }
 
     Task<string> ExportSavedProjectsToCsvAsync(string csvPath, CancellationToken cancellationToken = default);

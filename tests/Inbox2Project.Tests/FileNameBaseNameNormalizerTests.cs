@@ -53,4 +53,15 @@ public sealed class FileNameBaseNameNormalizerTests
 
         Assert.Equal(expected, result);
     }
+
+    [Theory]
+    [InlineData("OPUS", "Sarah__Review", "OPUS_Sarah_Review")]
+    [InlineData("OPUS", "OPUS_Review", "OPUS_Review")]
+    [InlineData(null, "Sarah Review", "Sarah Review")]
+    public void PrefixSubproject_UsesSingleSeparatorAndDoesNotDuplicate(string? subproject, string input, string expected)
+    {
+        var result = FileNameBaseNameNormalizer.PrefixSubproject(subproject, input, _pathSafetyService);
+
+        Assert.Equal(expected, result);
+    }
 }

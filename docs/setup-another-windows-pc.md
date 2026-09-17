@@ -178,9 +178,13 @@ Start Outlook normally. Keep the **Try the new Outlook** switch Off.
 3. Right-click the selected email.
 4. Confirm **Save to Inbox2Project** appears near the top of the shortcut menu.
 5. Click it.
-6. In the project selector, use **Add Project** to add an existing project root folder. Give it a helpful nickname if desired.
-7. Select that project and choose **Save to Selected Project**.
-8. Confirm the completion window reports success.
+6. Select one of the shared main project EMAILS archives. Existing saved destinations under `Code\<main-project>\...` are migrated to the matching shared archive the first time the updated bridge loads settings.
+7. For a subproject, select its name from **Subproject (optional)**. Use **Manage Subprojects** to add or remove names; this does not create a folder. The selected name is added to both the saved email name and any attachment folder.
+8. Use **Add Project** only for destinations outside the five shared archives.
+9. Choose **Save to Selected Project**.
+10. Confirm the completion window reports success.
+
+The installer backs up `%AppData%\Inbox2Project\settings.json` and `saved-projects-backup.csv` under `%AppData%\Inbox2Project\migration-backups` before migrating local saved destinations. No email or attachment files are moved.
 
 For an email without attachments, verify a `.txt` file appears under:
 

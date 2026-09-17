@@ -43,6 +43,28 @@ public static class FileNameBaseNameNormalizer
         return pathSafetyService.SanitizeName(stripped, fallback);
     }
 
+    public static string PrefixSubproject(
+        string? subprojectName,
+        string baseName,
+        IPathSafetyService pathSafetyService)
+    {
+        if (string.IsNullOrWhiteSpace(subprojectName))
+        {
+            return pathSafetyService.SanitizeName(baseName, "untitled");
+        }
+
+        var subproject = pathSafetyService.SanitizeName(subprojectName, string.Empty);
+        var safeBaseName = pathSafetyService.SanitizeName(baseName, "untitled");
+        if (string.IsNullOrWhiteSpace(subproject)
+            || string.Equals(subproject, safeBaseName, StringComparison.OrdinalIgnoreCase)
+            || safeBaseName.StartsWith(subproject + "_", StringComparison.OrdinalIgnoreCase))
+        {
+            return safeBaseName;
+        }
+
+        return pathSafetyService.SanitizeName($"{subproject}_{safeBaseName}", safeBaseName);
+    }
+
     public static string StripAutoDateFromBaseName(string value, DateTimeOffset receivedAt)
     {
         var trimmed = MultiSpaceRegex.Replace(value.Trim(), " ");

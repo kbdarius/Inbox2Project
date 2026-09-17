@@ -14,6 +14,35 @@ internal static class Program
     [STAThread]
     public static async Task Main(string[] args)
     {
+        if (args.Any(argument => string.Equals(argument, "--migrate-settings", StringComparison.OrdinalIgnoreCase)))
+        {
+            try
+            {
+                await new SettingsService().LoadAsync();
+                Environment.ExitCode = 0;
+            }
+            catch (Exception exception)
+            {
+                try
+                {
+                    var errorPath = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                        "Inbox2Project",
+                        "settings-migration-error.txt");
+                    Directory.CreateDirectory(Path.GetDirectoryName(errorPath)!);
+                    await File.WriteAllTextAsync(errorPath, exception.ToString());
+                }
+                catch
+                {
+                    // Preserve the non-zero exit code even if diagnostics cannot be written.
+                }
+
+                Environment.ExitCode = 1;
+            }
+
+            return;
+        }
+
         using var singleInstance = new Mutex(true, @"Local\Inbox2Project.OutlookBridge", out var isFirstInstance);
         if (!isFirstInstance)
         {

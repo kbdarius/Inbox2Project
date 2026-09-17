@@ -71,7 +71,7 @@ function Bump-BridgeVersion() {
 }
 
 function Stop-LockingProcesses([bool]$includeOutlook) {
-    $processNames = @('Inbox2Project.OutlookBridge', 'MSBuild', 'dotnet')
+    $processNames = @('Inbox2Project.OutlookBridge')
     if ($includeOutlook) {
         $processNames = @('OUTLOOK') + $processNames
     }
@@ -155,6 +155,56 @@ function Install-AddIn() {
     }
 }
 
+function Migrate-LocalProjectSettings() {
+    $bridge = Join-Path $publishedDir 'Inbox2Project.OutlookBridge.exe'
+    if (-not (Test-Path $bridge)) {
+        throw "Settings migration executable not found: $bridge"
+    }
+
+    $appRoot = Join-Path $env:APPDATA 'Inbox2Project'
+    $backupRoot = Join-Path $appRoot 'migration-backups'
+    $settingsPath = Join-Path $appRoot 'settings.json'
+    $csvPath = Join-Path $appRoot 'saved-projects-backup.csv'
+    $timestamp = Get-Date -Format 'yyyyMMdd-HHmmssfff'
+    $backupCreated = $false
+    foreach ($source in @($settingsPath, $csvPath)) {
+        if (Test-Path -LiteralPath $source) {
+            New-Item -ItemType Directory -Path $backupRoot -Force | Out-Null
+            $destination = Join-Path $backupRoot ("{0}-{1}" -f $timestamp, (Split-Path -Leaf $source))
+            Copy-Item -LiteralPath $source -Destination $destination
+            Write-Host "Backed up local settings: $destination"
+            $backupCreated = $true
+        }
+    }
+
+    $process = Start-Process -FilePath $bridge `
+        -ArgumentList @('--migrate-settings') `
+        -WindowStyle Hidden `
+        -Wait `
+        -PassThru
+    if ($process.ExitCode -ne 0) {
+        $errorPath = Join-Path $appRoot 'settings-migration-error.txt'
+        throw "Local project settings migration failed with exit code $($process.ExitCode). See $errorPath."
+    }
+
+    if (Test-Path -LiteralPath $settingsPath) {
+        $settings = Get-Content -LiteralPath $settingsPath -Raw | ConvertFrom-Json
+        if ($settings.SharedProjectArchivesInitialized) {
+            $expectedNames = @('BESS', 'CASES', 'DIU', 'Li610', 'NexusGateway')
+            $savedNames = @($settings.SavedProjects | ForEach-Object Name)
+            $missingNames = @($expectedNames | Where-Object { $_ -notin $savedNames })
+            if ($missingNames.Count -gt 0) {
+                throw "Shared archive migration completed but these main projects are missing: $($missingNames -join ', ')."
+            }
+        }
+    }
+
+    if (-not $backupCreated) {
+        Write-Host 'No existing local settings needed a backup; shared archive defaults were initialized.'
+    }
+    Write-Host 'Local saved project destinations and subprojects migrated successfully.'
+}
+
 function Verify-AddInRegistration() {
     if (-not (Test-Path $outlookAddInKey)) {
         throw 'Inbox2Project Outlook add-in registry key was not found after install.'
@@ -188,6 +238,7 @@ function Commit-And-PushRelease([string]$version) {
         'AGENTS.md',
         'Create-Inbox2ProjectShortcut.ps1',
         'Dariuse_Build_Release_Instructions.md',
+        'docs/setup-another-windows-pc.md',
         'Inbox2Project.sln',
         'RELEASE.md',
         'Setup-Inbox2Project.bat',
@@ -205,11 +256,15 @@ function Commit-And-PushRelease([string]$version) {
         'src/Inbox2Project/Services/OpenAiBillingService.cs',
         'src/Inbox2Project/Services/ExportWorkflowService.cs',
         'src/Inbox2Project/Services/PathSafetyService.cs',
+        'src/Inbox2Project/Services/IProjectSelectorUi.cs',
+        'src/Inbox2Project/Services/ISettingsService.cs',
         'src/Inbox2Project/Services/SettingsService.cs',
         'tests/Inbox2Project.Tests/Inbox2Project.Tests.csproj',
         'tests/Inbox2Project.Tests/FileNameBaseNameNormalizerTests.cs',
         'tests/Inbox2Project.Tests/OpenAiBillingServiceTests.cs',
-        'tests/Inbox2Project.Tests/ExportWorkflowProjectListTests.cs'
+        'tests/Inbox2Project.Tests/ExportWorkflowProjectListTests.cs',
+        'tests/Inbox2Project.Tests/SettingsServiceSubprojectTests.cs',
+        'tests/Inbox2Project.Tests/ExportWorkflowSubprojectTests.cs'
     )
 
     $untracked = @(git status --short --untracked-files=all | Where-Object { $_ -match '^\?\? ' } | ForEach-Object { $_.Substring(3) })
@@ -287,12 +342,16 @@ if ($shouldInstall) {
     Install-AddIn
 
     Write-Host ''
-    Write-Host 'Step 8 - Verifying add-in registration...'
+    Write-Host 'Step 8 - Backing up and migrating saved project destinations...'
+    Migrate-LocalProjectSettings
+
+    Write-Host ''
+    Write-Host 'Step 9 - Verifying add-in registration...'
     $registration = Verify-AddInRegistration
     $registration | Format-List | Out-Host
 
     Write-Host ''
-    Write-Host 'Step 9 - Reopening Outlook...'
+    Write-Host 'Step 10 - Reopening Outlook...'
     Start-OutlookIfNeeded -shouldStart:$shouldRestartOutlook
 }
 

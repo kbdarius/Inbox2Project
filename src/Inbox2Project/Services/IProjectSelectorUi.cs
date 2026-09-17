@@ -1,6 +1,10 @@
 namespace Inbox2Project.Services;
 
-public sealed record ProjectSelectionResult(string ProjectPath, string FinalBaseName, bool SaveEmailAsMsg = false);
+public sealed record ProjectSelectionResult(
+    string ProjectPath,
+    string FinalBaseName,
+    bool SaveEmailAsMsg = false,
+    string? SubprojectName = null);
 
 public interface IProjectSelectorUi
 {

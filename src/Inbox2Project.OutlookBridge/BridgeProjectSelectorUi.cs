@@ -31,7 +31,11 @@ public sealed class BridgeProjectSelectorUi : IProjectSelectorUi
         var result = form.ShowDialog();
         if (result == DialogResult.OK && !string.IsNullOrWhiteSpace(form.SelectedProjectPath))
         {
-            return new ProjectSelectionResult(form.SelectedProjectPath!, form.SelectedFinalName ?? suggestedBaseName, form.SelectedSaveAsMsg);
+            return new ProjectSelectionResult(
+                form.SelectedProjectPath!,
+                form.SelectedFinalName ?? suggestedBaseName,
+                form.SelectedSaveAsMsg,
+                form.SelectedSubprojectName);
         }
 
         return null;

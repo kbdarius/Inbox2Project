@@ -72,6 +72,7 @@ public sealed class ExportWorkflowService : IExportWorkflowService
             var destinationPath = selectedProject;
 
             var baseName = _pathSafetyService.SanitizeName(selection.FinalBaseName, suggestedBaseName);
+            baseName = FileNameBaseNameNormalizer.PrefixSubproject(selection.SubprojectName, baseName, _pathSafetyService);
             var datePrefix = $"{item.ReceivedAt:yyyyMMdd}_";
             var prefixedBaseName = $"{datePrefix}{baseName}";
             var attachmentCount = item.Attachments.Count;

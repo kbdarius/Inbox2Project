@@ -10,6 +10,8 @@ public sealed class SettingsModel
 
 	public List<SavedProjectDefinition> SavedProjects { get; set; } = new();
 
+    public bool SharedProjectArchivesInitialized { get; set; }
+
     /// <summary>Legacy field kept for migration only. Use <see cref="AiProvider"/> instead.</summary>
     public bool UseLocalAiFolderNaming { get; set; }
 
@@ -21,4 +23,6 @@ public sealed class SavedProjectDefinition
 	public string Name { get; set; } = string.Empty;
 
 	public string ProjectPath { get; set; } = string.Empty;
+
+    public List<string> Subprojects { get; set; } = new();
 }

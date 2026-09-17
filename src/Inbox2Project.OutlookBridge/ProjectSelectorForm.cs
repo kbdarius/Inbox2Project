@@ -29,6 +29,7 @@ internal sealed class ProjectSelectorForm : Form
     private readonly OpenAiFolderNameService _openAiService;
 
     private readonly ComboBox _projectCombo;
+    private readonly ComboBox _subprojectCombo;
     private readonly Label _selectedPathLabel;
     private readonly Button _saveButton;
     private readonly TextBox _finalNameTextBox;
@@ -47,6 +48,12 @@ internal sealed class ProjectSelectorForm : Form
     private readonly Label _addStatusLabel;
     private readonly ListBox _removeListBox;
     private readonly Label _removeStatusLabel;
+    private readonly ComboBox _manageSubprojectMainCombo;
+    private readonly ComboBox _manageSubprojectCombo;
+    private readonly TextBox _subprojectNameTextBox;
+    private readonly Button _addSubprojectButton;
+    private readonly Button _removeSubprojectButton;
+    private readonly Label _subprojectStatusLabel;
     private readonly System.Windows.Forms.ToolTip _toolTip;
     private string? _editingProjectPath;
     private bool _suppressFinalNameUpdate;
@@ -103,6 +110,7 @@ internal sealed class ProjectSelectorForm : Form
 
         var selectTab = new TabPage("Select Project") { BackColor = System.Drawing.Color.FromArgb(238, 243, 248) };
         var addTab = new TabPage("Add Project") { BackColor = System.Drawing.Color.FromArgb(238, 243, 248) };
+        var subprojectTab = new TabPage("Manage Subprojects") { BackColor = System.Drawing.Color.FromArgb(238, 243, 248) };
 
         _projectCombo = new ComboBox
         {
@@ -117,15 +125,30 @@ internal sealed class ProjectSelectorForm : Form
             MaxDropDownItems = 12,
         };
         _projectCombo.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-        _projectCombo.SelectedIndexChanged += (_, _) => UpdatePathLabel();
+        _projectCombo.SelectedIndexChanged += (_, _) =>
+        {
+            UpdatePathLabel();
+            PopulateSubprojectChoices(string.Empty);
+        };
         _projectCombo.DoubleClick += (_, _) => ConfirmSelection();
+
+        _subprojectCombo = new ComboBox
+        {
+            Left = 24,
+            Top = 162,
+            Width = 780,
+            Height = 30,
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+        };
+        _subprojectCombo.SelectedIndexChanged += (_, _) => UpdateFinalNamePreview();
 
         _selectedPathLabel = new Label
         {
             Left = 24,
-            Top = 454,
+            Top = 514,
             Width = 780,
-            Height = 48,
+            Height = 40,
             AutoSize = false,
             AutoEllipsis = true,
             BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle,
@@ -154,7 +177,7 @@ internal sealed class ProjectSelectorForm : Form
         _finalNameTextBox = new TextBox
         {
             Left = 24,
-            Top = 170,
+            Top = 228,
             Width = 780,
             Height = 30,
             MaxLength = 255,
@@ -169,7 +192,7 @@ internal sealed class ProjectSelectorForm : Form
         _finalNamePreviewLabel = new Label
         {
             Left = 24,
-            Top = 208,
+            Top = 266,
             Width = 780,
             Height = 54,
             ForeColor = System.Drawing.Color.DimGray,
@@ -186,7 +209,7 @@ internal sealed class ProjectSelectorForm : Form
         _includeSenderCheck = new CheckBox
         {
             Left = 24,
-            Top = 278,
+            Top = 330,
             Width = 780,
             Text = "Include sender name in file name (sender_subject)",
             Enabled = !string.IsNullOrWhiteSpace(_senderName),
@@ -198,7 +221,7 @@ internal sealed class ProjectSelectorForm : Form
         _aiProviderCombo = new ComboBox
         {
             Left = 24,
-            Top = 310,
+            Top = 362,
             Width = 780,
             DropDownStyle = ComboBoxStyle.DropDownList,
         };
@@ -215,7 +238,7 @@ internal sealed class ProjectSelectorForm : Form
         _aiStatusLabel = new Label
         {
             Left = 24,
-            Top = 342,
+            Top = 394,
             Width = 780,
             Height = 42,
             Text = "Checking AI setup...",
@@ -226,7 +249,7 @@ internal sealed class ProjectSelectorForm : Form
         _aiSetupLink = new LinkLabel
         {
             Left = 24,
-            Top = 388,
+            Top = 438,
             Width = 780,
             Height = 28,
             Text = "Set up or update OpenAI API key",
@@ -244,7 +267,7 @@ internal sealed class ProjectSelectorForm : Form
         _saveAsMsgCheck = new CheckBox
         {
             Left = 24,
-            Top = 420,
+            Top = 470,
             Width = 780,
             Height = 24,
             Text = "Save email as Outlook message (.msg) to preserve formatting, images, and tables",
@@ -275,9 +298,11 @@ internal sealed class ProjectSelectorForm : Form
             ForeColor = System.Drawing.Color.DimGray,
             Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
         });
-        selectTab.Controls.Add(new Label { Left = 24, Top = 78, Width = 400, Text = "Project destination:" });
+        selectTab.Controls.Add(new Label { Left = 24, Top = 78, Width = 400, Text = "Main project destination:" });
         selectTab.Controls.Add(_projectCombo);
-        selectTab.Controls.Add(new Label { Left = 24, Top = 148, Width = 500, Text = "File name (before date prefix and extension):" });
+        selectTab.Controls.Add(new Label { Left = 24, Top = 140, Width = 500, Text = "Subproject (optional):" });
+        selectTab.Controls.Add(_subprojectCombo);
+        selectTab.Controls.Add(new Label { Left = 24, Top = 206, Width = 500, Text = "File name (before date prefix and extension):" });
         selectTab.Controls.Add(_finalNameTextBox);
         selectTab.Controls.Add(_finalNamePreviewLabel);
         selectTab.Controls.Add(_includeSenderCheck);
@@ -289,7 +314,7 @@ internal sealed class ProjectSelectorForm : Form
         var selectTipLabel = new Label
         {
             Left = 24,
-            Top = 514,
+            Top = 574,
             Width = 780,
             Height = 28,
             Text = "Tip: add a new project on the Add Project tab first, then return here to select it.",
@@ -457,6 +482,101 @@ internal sealed class ProjectSelectorForm : Form
         manageTab.Controls.Add(editButton);
         manageTab.Controls.Add(_removeStatusLabel);
 
+        _manageSubprojectMainCombo = new ComboBox
+        {
+            Left = 24,
+            Top = 96,
+            Width = 780,
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+        };
+        _manageSubprojectMainCombo.SelectedIndexChanged += (_, _) => PopulateManageSubprojectList();
+
+        _manageSubprojectCombo = new ComboBox
+        {
+            Left = 24,
+            Top = 166,
+            Width = 780,
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+        };
+        _manageSubprojectCombo.SelectedIndexChanged += (_, _) => UpdateSubprojectButtons();
+
+        _subprojectNameTextBox = new TextBox
+        {
+            Left = 24,
+            Top = 246,
+            Width = 780,
+            MaxLength = 255,
+            BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle,
+            BackColor = System.Drawing.Color.White,
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+        };
+        _subprojectNameTextBox.TextChanged += (_, _) => UpdateSubprojectButtons();
+
+        _addSubprojectButton = new Button
+        {
+            Left = 624,
+            Top = 314,
+            Width = 180,
+            Height = 40,
+            Text = "Add Subproject",
+            FlatStyle = FlatStyle.Flat,
+            BackColor = System.Drawing.Color.FromArgb(0, 112, 120),
+            ForeColor = System.Drawing.Color.White,
+            UseVisualStyleBackColor = false,
+            Anchor = AnchorStyles.Top | AnchorStyles.Right,
+        };
+        _addSubprojectButton.Click += async (_, _) => await AddSubprojectAsync();
+
+        _removeSubprojectButton = new Button
+        {
+            Left = 432,
+            Top = 314,
+            Width = 180,
+            Height = 40,
+            Text = "Remove Selected",
+            FlatStyle = FlatStyle.Flat,
+            BackColor = System.Drawing.Color.FromArgb(232, 239, 246),
+            ForeColor = System.Drawing.Color.FromArgb(35, 58, 80),
+            Anchor = AnchorStyles.Top | AnchorStyles.Right,
+        };
+        _removeSubprojectButton.Click += async (_, _) => await RemoveSubprojectAsync();
+
+        _subprojectStatusLabel = new Label
+        {
+            Left = 24,
+            Top = 370,
+            Width = 780,
+            Height = 36,
+            ForeColor = System.Drawing.Color.DarkGreen,
+            AutoSize = false,
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+        };
+
+        subprojectTab.Controls.Add(new Label
+        {
+            Left = 24,
+            Top = 12,
+            Width = 780,
+            Height = 28,
+            Text = "Manage project subnames",
+            Font = new System.Drawing.Font(Font, System.Drawing.FontStyle.Bold),
+            BackColor = System.Drawing.Color.FromArgb(32, 99, 155),
+            ForeColor = System.Drawing.Color.White,
+            Padding = new System.Windows.Forms.Padding(10, 4, 0, 0),
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+        });
+        subprojectTab.Controls.Add(new Label { Left = 24, Top = 68, Width = 600, Text = "Main project:" });
+        subprojectTab.Controls.Add(_manageSubprojectMainCombo);
+        subprojectTab.Controls.Add(new Label { Left = 24, Top = 138, Width = 600, Text = "Existing subprojects:" });
+        subprojectTab.Controls.Add(_manageSubprojectCombo);
+        subprojectTab.Controls.Add(new Label { Left = 24, Top = 218, Width = 600, Text = "Add a subproject name (no folder required):" });
+        subprojectTab.Controls.Add(_subprojectNameTextBox);
+        subprojectTab.Controls.Add(_addSubprojectButton);
+        subprojectTab.Controls.Add(_removeSubprojectButton);
+        subprojectTab.Controls.Add(_subprojectStatusLabel);
+
         var selectActionsPanel = new System.Windows.Forms.Panel
         {
             Dock = DockStyle.Bottom,
@@ -504,6 +624,22 @@ internal sealed class ProjectSelectorForm : Form
         _removeStatusLabel.Left = 16;
         _removeStatusLabel.Top = 58;
 
+        var subprojectActionsPanel = new System.Windows.Forms.Panel
+        {
+            Dock = DockStyle.Bottom,
+            Height = 72,
+            BackColor = System.Drawing.Color.FromArgb(236, 244, 249),
+            BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle,
+        };
+        subprojectTab.Controls.Add(subprojectActionsPanel);
+        subprojectActionsPanel.Controls.Add(_subprojectStatusLabel);
+        subprojectActionsPanel.Controls.Add(_addSubprojectButton);
+        subprojectActionsPanel.Controls.Add(_removeSubprojectButton);
+        _subprojectStatusLabel.Left = 16;
+        _subprojectStatusLabel.Top = 20;
+        _addSubprojectButton.Top = 14;
+        _removeSubprojectButton.Top = 14;
+
         void LayoutActionPanels()
         {
             _saveButton.Left = Math.Max(16, selectActionsPanel.ClientSize.Width - 16 - _saveButton.Width);
@@ -516,25 +652,34 @@ internal sealed class ProjectSelectorForm : Form
             editButton.Left = Math.Max(16, removeButton.Left - 12 - editButton.Width);
             manageHintLabel.Width = Math.Max(160, editButton.Left - 32);
             _removeStatusLabel.Width = Math.Max(160, manageActionsPanel.ClientSize.Width - 32);
+
+            _addSubprojectButton.Left = Math.Max(16, subprojectActionsPanel.ClientSize.Width - 16 - _addSubprojectButton.Width);
+            _removeSubprojectButton.Left = Math.Max(16, _addSubprojectButton.Left - 12 - _removeSubprojectButton.Width);
+            _subprojectStatusLabel.Width = Math.Max(160, _removeSubprojectButton.Left - 32);
         }
 
         selectActionsPanel.Resize += (_, _) => LayoutActionPanels();
         addActionsPanel.Resize += (_, _) => LayoutActionPanels();
         manageActionsPanel.Resize += (_, _) => LayoutActionPanels();
+        subprojectActionsPanel.Resize += (_, _) => LayoutActionPanels();
 
         _tabs.Controls.Add(selectTab);
         _tabs.Controls.Add(addTab);
         _tabs.Controls.Add(manageTab);
+        _tabs.Controls.Add(subprojectTab);
         Controls.Add(_tabs);
 
         PopulateProjects(suggestedProjectPath);
         PopulateRemoveList(settings.SavedProjects);
+        PopulateManageSubprojectProjects();
+        PopulateSubprojectChoices();
         UpdateAddButtonState();
         ApplySenderNameToggle();
         NormalizeAndPreviewFinalName();
         selectTab.Resize += (_, _) => FitWideControls(selectTab);
         addTab.Resize += (_, _) => FitWideControls(addTab);
         manageTab.Resize += (_, _) => FitWideControls(manageTab);
+        subprojectTab.Resize += (_, _) => FitWideControls(subprojectTab);
         _tabs.SelectedIndexChanged += (_, _) => ResizeForSelectedTab();
         Load += async (_, _) =>
         {
@@ -542,15 +687,18 @@ internal sealed class ProjectSelectorForm : Form
             FitWideControls(selectTab);
             FitWideControls(addTab);
             FitWideControls(manageTab);
+            FitWideControls(subprojectTab);
             LayoutActionPanels();
             await UpdateAiStatusAsync();
         };
 
-        _toolTip.SetToolTip(_projectCombo, "Select the project folder where this email will be saved.");
+        _toolTip.SetToolTip(_projectCombo, "Select the main project EMAILS archive.");
+        _toolTip.SetToolTip(_subprojectCombo, "Optionally include a subproject identifier in the saved name.");
         _toolTip.SetToolTip(_finalNameTextBox, "Use letters, numbers, spaces, underscores, periods, and dashes. Maximum 255 characters.");
         _toolTip.SetToolTip(_finalNamePreviewLabel, "The complete file name that will be created.");
         _toolTip.SetToolTip(_parentFolderTextBox, "Enter an existing folder path.");
         _toolTip.SetToolTip(_projectNameTextBox, "Optional display name used in the project list.");
+        _toolTip.SetToolTip(_subprojectNameTextBox, "Subproject names are labels only; no folder is created.");
     }
 
     public string? SelectedProjectPath { get; private set; }
@@ -559,13 +707,16 @@ internal sealed class ProjectSelectorForm : Form
 
     public bool SelectedSaveAsMsg { get; private set; }
 
+    public string? SelectedSubprojectName { get; private set; }
+
     private void ResizeForSelectedTab()
     {
         var desiredClientHeight = _tabs.SelectedIndex switch
         {
             1 => 370,
             2 => 400,
-            _ => 620,
+            3 => 480,
+            _ => 672,
         };
 
         var windowChromeHeight = Height - ClientSize.Height;
@@ -618,7 +769,7 @@ internal sealed class ProjectSelectorForm : Form
                 var displayName = savedByPath.TryGetValue(path, out var saved)
                     ? saved.Name
                     : Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-                return new ProjectOption(displayName, path);
+                return new ProjectOption(displayName, path, saved?.Subprojects ?? new List<string>());
             })
             .OrderByDescending(option => string.Equals(option.Path, lastSelectedProject, StringComparison.OrdinalIgnoreCase))
             .ThenBy(option => option.Name, StringComparer.OrdinalIgnoreCase)
@@ -649,6 +800,90 @@ internal sealed class ProjectSelectorForm : Form
         var selected = _projects.FindIndex(project => string.Equals(project.Path, suggestedProjectPath, StringComparison.OrdinalIgnoreCase));
         _projectCombo.SelectedIndex = selected >= 0 ? selected : 0;
         UpdatePathLabel();
+        PopulateSubprojectChoices();
+    }
+
+    private void PopulateSubprojectChoices(string? selectedSubproject = null)
+    {
+        if (_subprojectCombo is null)
+        {
+            return;
+        }
+
+        if (selectedSubproject is null && _subprojectCombo.SelectedItem is SubprojectOption previous)
+        {
+            selectedSubproject = previous.Name;
+        }
+
+        _subprojectCombo.Items.Clear();
+        _subprojectCombo.Items.Add(new SubprojectOption(string.Empty));
+        if (_projectCombo.SelectedItem is ProjectOption project)
+        {
+            foreach (var name in project.Subprojects ?? new List<string>())
+            {
+                _subprojectCombo.Items.Add(new SubprojectOption(name));
+            }
+        }
+
+        var selectedIndex = -1;
+        for (var i = 0; i < _subprojectCombo.Items.Count; i++)
+        {
+            if (_subprojectCombo.Items[i] is SubprojectOption option
+                && string.Equals(option.Name, selectedSubproject, StringComparison.OrdinalIgnoreCase))
+            {
+                selectedIndex = i;
+                break;
+            }
+        }
+
+        _subprojectCombo.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
+        UpdateFinalNamePreview();
+    }
+
+    private void PopulateManageSubprojectProjects(string? selectedPath = null)
+    {
+        if (selectedPath is null && _manageSubprojectMainCombo.SelectedItem is ProjectOption previous)
+        {
+            selectedPath = previous.Path;
+        }
+
+        _manageSubprojectMainCombo.Items.Clear();
+        foreach (var project in _projects.OrderBy(option => option.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            _manageSubprojectMainCombo.Items.Add(project);
+        }
+
+        var selectedIndex = _projects.FindIndex(project =>
+            string.Equals(project.Path, selectedPath, StringComparison.OrdinalIgnoreCase));
+        _manageSubprojectMainCombo.SelectedIndex = selectedIndex >= 0 ? selectedIndex : (_projects.Count > 0 ? 0 : -1);
+        PopulateManageSubprojectList();
+    }
+
+    private void PopulateManageSubprojectList()
+    {
+        _manageSubprojectCombo.Items.Clear();
+        if (_manageSubprojectMainCombo.SelectedItem is ProjectOption project)
+        {
+            foreach (var name in project.Subprojects ?? new List<string>())
+            {
+                _manageSubprojectCombo.Items.Add(new SubprojectOption(name));
+            }
+        }
+
+        if (_manageSubprojectCombo.Items.Count > 0)
+        {
+            _manageSubprojectCombo.SelectedIndex = 0;
+        }
+
+        UpdateSubprojectButtons();
+    }
+
+    private void UpdateSubprojectButtons()
+    {
+        _addSubprojectButton.Enabled = _manageSubprojectMainCombo.SelectedItem is ProjectOption
+            && !string.IsNullOrWhiteSpace(_subprojectNameTextBox.Text);
+        _removeSubprojectButton.Enabled = _manageSubprojectMainCombo.SelectedItem is ProjectOption
+            && _manageSubprojectCombo.SelectedItem is SubprojectOption;
     }
 
     private async Task UpdateAiStatusAsync()
@@ -801,6 +1036,7 @@ internal sealed class ProjectSelectorForm : Form
         SelectedFinalName = string.IsNullOrWhiteSpace(finalName) ? _baseSuggestedName : finalName;
         SelectedProjectPath = option.Path;
         SelectedSaveAsMsg = _saveAsMsgCheck.Checked;
+        SelectedSubprojectName = (_subprojectCombo.SelectedItem as SubprojectOption)?.Name;
         DialogResult = DialogResult.OK;
         Close();
     }
@@ -843,6 +1079,8 @@ internal sealed class ProjectSelectorForm : Form
             _baseSuggestedName,
             _receivedAt,
             _pathSafetyService);
+        var subprojectName = (_subprojectCombo.SelectedItem as SubprojectOption)?.Name;
+        normalized = FileNameBaseNameNormalizer.PrefixSubproject(subprojectName, normalized, _pathSafetyService);
         var extension = _saveAsMsgCheck.Checked ? ".msg" : ".txt";
         var preview = $"{_receivedAt:yyyyMMdd}_{normalized}{extension}";
         _finalNamePreviewLabel.Text = "Final file name preview: " + preview;
@@ -879,6 +1117,7 @@ internal sealed class ProjectSelectorForm : Form
 
             var settings = await _settingsService.LoadAsync();
             PopulateRemoveList(settings.SavedProjects);
+            PopulateManageSubprojectProjects();
 
             _removeStatusLabel.Text = $"\u2713 '{option.Name}' removed from the list.";
         }
@@ -887,6 +1126,80 @@ internal sealed class ProjectSelectorForm : Form
             _removeStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
             _removeStatusLabel.Text = "Could not remove: " + exception.Message;
         }
+    }
+
+    private async Task AddSubprojectAsync()
+    {
+        _subprojectStatusLabel.Text = string.Empty;
+        _subprojectStatusLabel.ForeColor = System.Drawing.Color.DarkGreen;
+        if (_manageSubprojectMainCombo.SelectedItem is not ProjectOption mainProject)
+        {
+            _subprojectStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
+            _subprojectStatusLabel.Text = "Select a main project first.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_subprojectNameTextBox.Text))
+        {
+            _subprojectStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
+            _subprojectStatusLabel.Text = "Enter a subproject name.";
+            return;
+        }
+
+        try
+        {
+            var subprojectName = _subprojectNameTextBox.Text.Trim();
+            var saved = await _settingsService.AddSubprojectAsync(mainProject.Path, subprojectName);
+            UpdateProjectOption(saved);
+            PopulateProjects(mainProject.Path);
+            PopulateSubprojectChoices(subprojectName);
+            PopulateManageSubprojectProjects(mainProject.Path);
+            _subprojectStatusLabel.Text = $"'{subprojectName}' is available under {saved.Name}; no folder was created.";
+            _subprojectNameTextBox.Clear();
+        }
+        catch (Exception exception)
+        {
+            _subprojectStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
+            _subprojectStatusLabel.Text = "Could not add subproject: " + exception.Message;
+        }
+    }
+
+    private async Task RemoveSubprojectAsync()
+    {
+        _subprojectStatusLabel.Text = string.Empty;
+        _subprojectStatusLabel.ForeColor = System.Drawing.Color.DarkGreen;
+        if (_manageSubprojectMainCombo.SelectedItem is not ProjectOption mainProject
+            || _manageSubprojectCombo.SelectedItem is not SubprojectOption subproject)
+        {
+            _subprojectStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
+            _subprojectStatusLabel.Text = "Select a subproject to remove.";
+            return;
+        }
+
+        try
+        {
+            await _settingsService.RemoveSubprojectAsync(mainProject.Path, subproject.Name);
+            var settings = await _settingsService.LoadAsync();
+            var saved = settings.SavedProjects.First(project =>
+                string.Equals(project.ProjectPath, mainProject.Path, StringComparison.OrdinalIgnoreCase));
+            UpdateProjectOption(saved);
+            PopulateProjects(mainProject.Path);
+            PopulateSubprojectChoices();
+            PopulateManageSubprojectProjects(mainProject.Path);
+            _subprojectStatusLabel.Text = $"'{subproject.Name}' was removed from {saved.Name}; saved files were not changed.";
+        }
+        catch (Exception exception)
+        {
+            _subprojectStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
+            _subprojectStatusLabel.Text = "Could not remove subproject: " + exception.Message;
+        }
+    }
+
+    private void UpdateProjectOption(SavedProjectDefinition saved)
+    {
+        _projects.RemoveAll(project => string.Equals(project.Path, saved.ProjectPath, StringComparison.OrdinalIgnoreCase));
+        _projects.Add(new ProjectOption(saved.Name, saved.ProjectPath, saved.Subprojects ?? new List<string>()));
+        _projects.Sort((left, right) => StringComparer.OrdinalIgnoreCase.Compare(left.Name, right.Name));
     }
 
     private async Task AddProjectAsync()
@@ -918,11 +1231,12 @@ internal sealed class ProjectSelectorForm : Form
                 _projects.RemoveAll(project => string.Equals(project.Path, _editingProjectPath, StringComparison.OrdinalIgnoreCase));
             }
             _projects.RemoveAll(project => string.Equals(project.Path, saved.ProjectPath, StringComparison.OrdinalIgnoreCase));
-            _projects.Add(new ProjectOption(saved.Name, saved.ProjectPath));
+            _projects.Add(new ProjectOption(saved.Name, saved.ProjectPath, saved.Subprojects ?? new List<string>()));
             _projects.Sort((left, right) => StringComparer.OrdinalIgnoreCase.Compare(left.Name, right.Name));
             PopulateProjects(saved.ProjectPath);
             var updatedSettings = await _settingsService.LoadAsync();
             PopulateRemoveList(updatedSettings.SavedProjects);
+            PopulateManageSubprojectProjects(saved.ProjectPath);
             _addStatusLabel.Text = _editingProjectPath is null
                 ? $"\u2713 '{saved.Name}' added and selected."
                 : $"\u2713 '{saved.Name}' updated and selected.";
@@ -994,8 +1308,13 @@ internal sealed class ProjectSelectorForm : Form
         return directory.Name;
     }
 
-    private sealed record ProjectOption(string Name, string Path)
+    private sealed record ProjectOption(string Name, string Path, IReadOnlyList<string>? Subprojects = null)
     {
         public override string ToString() => Directory.Exists(Path) ? Name : $"{Name} (folder unavailable)";
+    }
+
+    private sealed record SubprojectOption(string Name)
+    {
+        public override string ToString() => string.IsNullOrWhiteSpace(Name) ? "(No subproject)" : Name;
     }
 }
