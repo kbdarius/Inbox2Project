@@ -203,11 +203,13 @@ function Commit-And-PushRelease([string]$version) {
         'src/Inbox2Project/Services/OllamaFolderNameService.cs',
         'src/Inbox2Project/Services/OpenAiFolderNameService.cs',
         'src/Inbox2Project/Services/OpenAiBillingService.cs',
+        'src/Inbox2Project/Services/ExportWorkflowService.cs',
         'src/Inbox2Project/Services/PathSafetyService.cs',
         'src/Inbox2Project/Services/SettingsService.cs',
         'tests/Inbox2Project.Tests/Inbox2Project.Tests.csproj',
         'tests/Inbox2Project.Tests/FileNameBaseNameNormalizerTests.cs',
-        'tests/Inbox2Project.Tests/OpenAiBillingServiceTests.cs'
+        'tests/Inbox2Project.Tests/OpenAiBillingServiceTests.cs',
+        'tests/Inbox2Project.Tests/ExportWorkflowProjectListTests.cs'
     )
 
     $untracked = @(git status --short --untracked-files=all | Where-Object { $_ -match '^\?\? ' } | ForEach-Object { $_.Substring(3) })

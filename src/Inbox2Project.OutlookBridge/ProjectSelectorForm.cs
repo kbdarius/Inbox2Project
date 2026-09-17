@@ -610,6 +610,8 @@ internal sealed class ProjectSelectorForm : Form
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
         return projectPaths
+            .Concat(savedProjects.Select(saved => saved.ProjectPath))
+            .Where(path => !string.IsNullOrWhiteSpace(path))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Select(path =>
             {
@@ -637,6 +639,12 @@ internal sealed class ProjectSelectorForm : Form
             _saveButton.Enabled = false;
             return;
         }
+
+        var itemHeight = Math.Max(_projectCombo.ItemHeight, 1);
+        var maxDropDownHeight = Math.Max(itemHeight, Screen.FromControl(this).WorkingArea.Height - 120);
+        var visibleItemCount = Math.Max(1, Math.Min(Math.Min(_projects.Count, 100), maxDropDownHeight / itemHeight));
+        _projectCombo.MaxDropDownItems = visibleItemCount;
+        _projectCombo.DropDownHeight = Math.Min(maxDropDownHeight, visibleItemCount * itemHeight);
 
         var selected = _projects.FindIndex(project => string.Equals(project.Path, suggestedProjectPath, StringComparison.OrdinalIgnoreCase));
         _projectCombo.SelectedIndex = selected >= 0 ? selected : 0;
@@ -719,6 +727,10 @@ internal sealed class ProjectSelectorForm : Form
         _selectedPathLabel.Text = option.Path;
         _toolTip.SetToolTip(_selectedPathLabel, option.Path);
         _saveButton.Enabled = Directory.Exists(option.Path);
+        if (!_saveButton.Enabled)
+        {
+            _selectedPathLabel.Text = $"Folder unavailable. Edit this project on the Manage Projects tab.\r\n{option.Path}";
+        }
     }
 
     private void ApplySenderNameToggle()
@@ -766,6 +778,18 @@ internal sealed class ProjectSelectorForm : Form
     {
         if (_projectCombo.SelectedItem is not ProjectOption option)
         {
+            return;
+        }
+
+        if (!Directory.Exists(option.Path))
+        {
+            UpdatePathLabel();
+            MessageBox.Show(
+                this,
+                "This project's folder cannot be found. Edit its location on the Manage Projects tab before saving.",
+                "Project folder unavailable",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
             return;
         }
 
@@ -972,6 +996,6 @@ internal sealed class ProjectSelectorForm : Form
 
     private sealed record ProjectOption(string Name, string Path)
     {
-        public override string ToString() => Name;
+        public override string ToString() => Directory.Exists(Path) ? Name : $"{Name} (folder unavailable)";
     }
 }

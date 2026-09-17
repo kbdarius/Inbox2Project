@@ -44,7 +44,6 @@ public sealed class ExportWorkflowService : IExportWorkflowService
             var settings = await _settingsService.LoadAsync(cancellationToken);
             var projects = settings.SavedProjects.Select(project => project.ProjectPath)
                 .Where(path => !string.IsNullOrWhiteSpace(path))
-                .Where(Directory.Exists)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
