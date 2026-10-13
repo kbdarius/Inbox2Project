@@ -85,7 +85,22 @@ internal static class Program
 
             if (result.Succeeded)
             {
-                using var completion = new CompletionForm(result.UserMessage, result.OutputPaths);
+                var emailFileName = result.OutputPaths
+                    .FirstOrDefault(path =>
+                        string.Equals(Path.GetExtension(path), ".msg", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(Path.GetExtension(path), ".txt", StringComparison.OrdinalIgnoreCase))
+                    is { } emailPath
+                        ? Path.GetFileName(emailPath)
+                        : null;
+                var clipboardUpdated = emailFileName is not null
+                    && TryCopyFileNameToClipboard(emailFileName);
+                var completionMessage = emailFileName is null
+                    ? result.UserMessage
+                    : clipboardUpdated
+                        ? $"{result.UserMessage}{Environment.NewLine}Email file name copied to clipboard."
+                        : $"{result.UserMessage}{Environment.NewLine}Email saved, but its file name could not be copied to the clipboard.";
+
+                using var completion = new CompletionForm(completionMessage, result.OutputPaths);
                 completion.ShowDialog();
                 Environment.ExitCode = 0;
                 return;
@@ -108,6 +123,34 @@ internal static class Program
                 MessageBoxIcon.Error,
                 MessageBoxDefaultButton.Button1);
             Environment.ExitCode = 1;
+        }
+    }
+
+    private static bool TryCopyFileNameToClipboard(string fileName)
+    {
+        try
+        {
+            Exception? clipboardException = null;
+            var clipboardThread = new Thread(() =>
+            {
+                try
+                {
+                    System.Windows.Forms.Clipboard.SetText(fileName, System.Windows.Forms.TextDataFormat.UnicodeText);
+                }
+                catch (Exception exception)
+                {
+                    clipboardException = exception;
+                }
+            });
+            clipboardThread.SetApartmentState(ApartmentState.STA);
+            clipboardThread.Start();
+            clipboardThread.Join();
+
+            return clipboardException is null;
+        }
+        catch
+        {
+            return false;
         }
     }
 
