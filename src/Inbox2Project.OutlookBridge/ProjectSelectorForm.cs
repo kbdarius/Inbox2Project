@@ -27,6 +27,7 @@ internal sealed class ProjectSelectorForm : Form
     private readonly TabControl _tabs;
     private IAiFolderNameService _aiFolderNameService;
     private readonly OpenAiFolderNameService _openAiService;
+    private readonly CopilotFolderNameService _copilotService;
 
     private readonly ComboBox _projectCombo;
     private readonly ComboBox _subprojectCombo;
@@ -67,11 +68,13 @@ internal sealed class ProjectSelectorForm : Form
         string suggestedBaseName,
         string senderName,
         DateTimeOffset receivedAt,
-        OpenAiFolderNameService openAiService)
+        OpenAiFolderNameService openAiService,
+        CopilotFolderNameService copilotService)
     {
         _settingsService = settingsService;
         _pathSafetyService = pathSafetyService;
         _openAiService = openAiService;
+        _copilotService = copilotService;
         _aiFolderNameService = openAiService;
         _baseSuggestedName = FileNameBaseNameNormalizer.NormalizeEditableBaseName(
             suggestedBaseName,
@@ -227,9 +230,11 @@ internal sealed class ProjectSelectorForm : Form
         };
         _aiProviderCombo.Items.Add("No AI naming");
         _aiProviderCombo.Items.Add("OpenAI API (choose model in setup)");
+        _aiProviderCombo.Items.Add("GitHub Copilot (uses your plan's AI credits)");
         _aiProviderCombo.SelectedIndex = settings.AiProvider switch
         {
             AiNamingProvider.OpenAi => 1,
+            AiNamingProvider.Copilot => 2,
             _ => 0,
         };
         _aiProviderCombo.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
@@ -252,15 +257,25 @@ internal sealed class ProjectSelectorForm : Form
             Top = 438,
             Width = 780,
             Height = 28,
-            Text = "Set up or update OpenAI API key",
+            Text = "Set up AI naming",
             Visible = false,
         };
         _aiSetupLink.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         _aiSetupLink.Links.Add(0, _aiSetupLink.Text.Length);
         _aiSetupLink.LinkClicked += async (_, _) =>
         {
-            using var form = new OpenAiApiKeySetupForm(_openAiService);
-            form.ShowDialog(this);
+            if (_aiProviderCombo.SelectedIndex == 2)
+            {
+                using var form = new CopilotSetupForm(_copilotService);
+                form.ShowDialog(this);
+                _copilotService.ClearLastSuggestionError();
+            }
+            else
+            {
+                using var form = new OpenAiApiKeySetupForm(_openAiService);
+                form.ShowDialog(this);
+            }
+
             await UpdateAiStatusAsync();
         };
 
@@ -891,10 +906,9 @@ internal sealed class ProjectSelectorForm : Form
         var selectedProvider = _aiProviderCombo.SelectedIndex switch
         {
             1 => AiNamingProvider.OpenAi,
+            2 => AiNamingProvider.Copilot,
             _ => AiNamingProvider.None,
         };
-
-        _aiFolderNameService = _openAiService;
 
         if (selectedProvider == AiNamingProvider.None)
         {
@@ -904,13 +918,62 @@ internal sealed class ProjectSelectorForm : Form
             return;
         }
 
-        _aiSetupLink.Text = "Set up OpenAI API key and model";
+        _aiFolderNameService = selectedProvider == AiNamingProvider.Copilot
+            ? _copilotService
+            : _openAiService;
+        _aiSetupLink.Text = selectedProvider == AiNamingProvider.Copilot
+            ? "Check GitHub Copilot sign-in"
+            : "Set up OpenAI API key and model";
         _aiSetupLink.Links.Clear();
         _aiSetupLink.Links.Add(0, _aiSetupLink.Text.Length);
 
         var setupState = await _aiFolderNameService.GetSetupStateAsync();
 
-        if (!setupState.IsOllamaInstalled)
+        if (selectedProvider == AiNamingProvider.Copilot)
+        {
+            if (!setupState.IsServiceAvailable)
+            {
+                _aiStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
+                _aiStatusLabel.Text = setupState.StatusMessage
+                    ?? "The GitHub Copilot runtime could not be started.";
+                _aiSetupLink.Visible = true;
+                return;
+            }
+
+            if (!setupState.IsConfigured)
+            {
+                _aiStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
+                _aiStatusLabel.Text = string.IsNullOrWhiteSpace(setupState.StatusMessage)
+                    ? "Sign in to GitHub Copilot CLI to enable AI naming."
+                    : setupState.StatusMessage;
+                _aiSetupLink.Visible = true;
+                return;
+            }
+
+            if (!setupState.IsModelAvailable)
+            {
+                _aiStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
+                _aiStatusLabel.Text = setupState.StatusMessage
+                    ?? "The signed-in account does not currently have Copilot model access.";
+                _aiSetupLink.Visible = true;
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(setupState.StatusMessage))
+            {
+                _aiStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
+                _aiStatusLabel.Text = setupState.StatusMessage;
+                _aiSetupLink.Visible = true;
+                return;
+            }
+
+            _aiStatusLabel.ForeColor = System.Drawing.Color.DarkGreen;
+            _aiStatusLabel.Text = $"GitHub Copilot naming is ready ({_copilotService.ModelName}).";
+            _aiSetupLink.Visible = true;
+            return;
+        }
+
+        if (!setupState.IsConfigured)
         {
             _aiStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
             _aiStatusLabel.Text = "Add an OpenAI API key to enable AI naming.";
@@ -918,7 +981,7 @@ internal sealed class ProjectSelectorForm : Form
             return;
         }
 
-        if (!setupState.IsServerAvailable)
+        if (!setupState.IsServiceAvailable)
         {
             _aiStatusLabel.ForeColor = System.Drawing.Color.DarkRed;
             _aiStatusLabel.Text = "The OpenAI service could not be reached. Check the internet connection and try again.";
@@ -944,6 +1007,7 @@ internal sealed class ProjectSelectorForm : Form
         var provider = _aiProviderCombo.SelectedIndex switch
         {
             1 => AiNamingProvider.OpenAi,
+            2 => AiNamingProvider.Copilot,
             _ => AiNamingProvider.None,
         };
         await _settingsService.SaveAiProviderAsync(provider);

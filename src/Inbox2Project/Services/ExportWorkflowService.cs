@@ -14,6 +14,7 @@ public sealed class ExportWorkflowService : IExportWorkflowService
     private readonly IAttachmentPromptService _attachmentPromptService;
     private readonly IPathSafetyService _pathSafetyService;
     private readonly IAiFolderNameService _aiFolderNameService;
+    private readonly IAiFolderNameService? _copilotFolderNameService;
     private readonly IDuplicateSubjectPromptService _duplicateSubjectPromptService;
     private readonly ILoggingService _loggingService;
 
@@ -25,7 +26,8 @@ public sealed class ExportWorkflowService : IExportWorkflowService
         IPathSafetyService pathSafetyService,
         IAiFolderNameService? aiFolderNameService,
         ILoggingService loggingService,
-        IDuplicateSubjectPromptService? duplicateSubjectPromptService = null)
+        IDuplicateSubjectPromptService? duplicateSubjectPromptService = null,
+        IAiFolderNameService? copilotFolderNameService = null)
     {
         _settingsService = settingsService;
         _projectDiscoveryService = projectDiscoveryService;
@@ -33,6 +35,7 @@ public sealed class ExportWorkflowService : IExportWorkflowService
         _attachmentPromptService = attachmentPromptService;
         _pathSafetyService = pathSafetyService;
         _aiFolderNameService = aiFolderNameService ?? new NoOpAiFolderNameService();
+        _copilotFolderNameService = copilotFolderNameService;
         _loggingService = loggingService;
         _duplicateSubjectPromptService = duplicateSubjectPromptService ?? new DefaultDuplicateSubjectPromptService();
     }
@@ -323,7 +326,15 @@ public sealed class ExportWorkflowService : IExportWorkflowService
             return null;
         }
 
-        return await _aiFolderNameService.SuggestFolderNameAsync(item.Subject, item.BodyText ?? string.Empty, cancellationToken);
+        var provider = settings.AiProvider switch
+        {
+            AiNamingProvider.OpenAi => _aiFolderNameService,
+            AiNamingProvider.Copilot => _copilotFolderNameService,
+            _ => null,
+        };
+        return provider is null
+            ? null
+            : await provider.SuggestFolderNameAsync(item.Subject, item.BodyText ?? string.Empty, cancellationToken);
     }
 
     private async Task<OperationResult> HandleFailureAsync(

@@ -237,7 +237,7 @@ internal sealed class OpenAiApiKeySetupForm : Form
             statusLabel.Text = "The saved OpenAI API key was removed.";
         };
         createKeyButton.Click += (_, _) => System.Diagnostics.Process.Start(
-            new System.Diagnostics.ProcessStartInfo(service.DownloadUrl) { UseShellExecute = true });
+            new System.Diagnostics.ProcessStartInfo(service.SetupUrl) { UseShellExecute = true });
         billingButton.Click += (_, _) => System.Diagnostics.Process.Start(
             new System.Diagnostics.ProcessStartInfo(service.BillingUrl) { UseShellExecute = true });
         testButton.Click += async (_, _) =>

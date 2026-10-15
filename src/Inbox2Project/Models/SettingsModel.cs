@@ -1,6 +1,6 @@
 namespace Inbox2Project.Models;
 
-public enum AiNamingProvider { None = 0, OpenAi = 1 }
+public enum AiNamingProvider { None = 0, OpenAi = 1, Copilot = 3 }
 
 public sealed class SettingsModel
 {

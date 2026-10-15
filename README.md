@@ -127,3 +127,9 @@ Rules:
 | No attachments | `no-attachments` | One `.txt` file under `EMAILS` | No folder creation |
 | Attachments + user No | `attachments-no` | One `.txt` file under `EMAILS` | No folder creation |
 | Attachments + user Yes | `attachments-yes` | One subject folder with `.txt` + attachments | Folder is created |
+
+## AI file-name suggestions
+
+The project selector can use OpenAI or GitHub Copilot to suggest an email file name. The Copilot option uses the account already signed in to Copilot CLI through the [GitHub Copilot SDK](https://github.com/github/copilot-sdk); authenticate once with Copilot CLI using the GitHub account whose usage allowance you want to use. Inbox2Project does not store a GitHub token or API key for Copilot. Requests count against the signed-in account's Copilot usage allowance and any applicable plan or organization limits. See GitHub's [Copilot SDK authentication guide](https://github.com/github/copilot-sdk/blob/main/docs/auth/authenticate.md) and [usage and billing information](https://docs.github.com/en/copilot/how-tos/copilot-sdk/features/usage-and-billing).
+
+When Copilot naming is selected, Inbox2Project sends the email subject and up to 1,200 characters of the email body to GitHub Copilot. Attachments are not sent for name suggestions.

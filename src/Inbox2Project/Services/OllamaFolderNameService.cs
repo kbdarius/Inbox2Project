@@ -33,14 +33,14 @@ public sealed class OllamaFolderNameService : IAiFolderNameService
 
     public string ModelName => _resolvedModelName ?? _preferredModelName;
 
-    public string DownloadUrl => DefaultDownloadUrl;
+    public string SetupUrl => DefaultDownloadUrl;
 
-    public async Task<OllamaSetupState> GetSetupStateAsync(CancellationToken cancellationToken = default)
+    public async Task<AiFolderNameSetupState> GetSetupStateAsync(CancellationToken cancellationToken = default)
     {
         if (!IsOllamaInstalledOnMachine())
         {
             _resolvedModelName = null;
-            return new OllamaSetupState(false, false, false, null, Array.Empty<string>(), DefaultDownloadUrl);
+            return new AiFolderNameSetupState(false, false, false, null, Array.Empty<string>(), DefaultDownloadUrl);
         }
 
         try
@@ -49,7 +49,7 @@ public sealed class OllamaFolderNameService : IAiFolderNameService
             if (!response.IsSuccessStatusCode)
             {
                 _resolvedModelName = null;
-                return new OllamaSetupState(true, false, false, null, Array.Empty<string>(), DefaultDownloadUrl);
+                return new AiFolderNameSetupState(true, false, false, null, Array.Empty<string>(), DefaultDownloadUrl);
             }
 
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -57,7 +57,7 @@ public sealed class OllamaFolderNameService : IAiFolderNameService
             if (!doc.RootElement.TryGetProperty("models", out var modelsElement) || modelsElement.ValueKind != JsonValueKind.Array)
             {
                 _resolvedModelName = null;
-                return new OllamaSetupState(true, true, false, null, Array.Empty<string>(), DefaultSetupGuideUrl);
+                return new AiFolderNameSetupState(true, true, false, null, Array.Empty<string>(), DefaultSetupGuideUrl);
             }
 
             var installedModels = new List<string>();
@@ -82,22 +82,22 @@ public sealed class OllamaFolderNameService : IAiFolderNameService
             _resolvedModelName = selectedModel;
             if (!string.IsNullOrWhiteSpace(selectedModel))
             {
-                return new OllamaSetupState(true, true, true, selectedModel, installedModels, DefaultSetupGuideUrl);
+                return new AiFolderNameSetupState(true, true, true, selectedModel, installedModels, DefaultSetupGuideUrl);
             }
 
-            return new OllamaSetupState(true, true, false, null, installedModels, DefaultSetupGuideUrl);
+            return new AiFolderNameSetupState(true, true, false, null, installedModels, DefaultSetupGuideUrl);
         }
         catch (HttpRequestException)
         {
             _resolvedModelName = null;
-            return new OllamaSetupState(true, false, false, null, Array.Empty<string>(), DefaultDownloadUrl);
+            return new AiFolderNameSetupState(true, false, false, null, Array.Empty<string>(), DefaultDownloadUrl);
         }
     }
 
     public async Task<string?> SuggestFolderNameAsync(string subject, string bodyText, CancellationToken cancellationToken = default)
     {
         var setup = await GetSetupStateAsync(cancellationToken);
-        if (!setup.IsServerAvailable || !setup.IsModelAvailable || string.IsNullOrWhiteSpace(setup.SelectedModelName))
+        if (!setup.IsServiceAvailable || !setup.IsModelAvailable || string.IsNullOrWhiteSpace(setup.SelectedModelName))
         {
             return null;
         }
@@ -250,10 +250,10 @@ public sealed class NoOpAiFolderNameService : IAiFolderNameService
 {
     public string ModelName => "phi3:mini";
 
-    public string DownloadUrl => "https://ollama.com/download";
+    public string SetupUrl => "https://ollama.com/download";
 
-    public Task<OllamaSetupState> GetSetupStateAsync(CancellationToken cancellationToken = default)
-        => Task.FromResult(new OllamaSetupState(false, false, false, null, Array.Empty<string>(), DownloadUrl));
+    public Task<AiFolderNameSetupState> GetSetupStateAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult(new AiFolderNameSetupState(false, false, false, null, Array.Empty<string>(), SetupUrl));
 
     public Task<string?> SuggestFolderNameAsync(string subject, string bodyText, CancellationToken cancellationToken = default)
         => Task.FromResult<string?>(null);

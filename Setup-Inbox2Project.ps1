@@ -240,16 +240,20 @@ function Commit-And-PushRelease([string]$version) {
         'Dariuse_Build_Release_Instructions.md',
         'docs/setup-another-windows-pc.md',
         'Inbox2Project.sln',
+        'README.md',
         'RELEASE.md',
         'Setup-Inbox2Project.bat',
         'Setup-Inbox2Project.ps1',
         'src/Inbox2Project.OutlookBridge/BridgeProjectSelectorUi.cs',
+        'src/Inbox2Project.OutlookBridge/CopilotFolderNameService.cs',
+        'src/Inbox2Project.OutlookBridge/CopilotSetupForm.cs',
         'src/Inbox2Project.OutlookBridge/OpenAiApiKeySetupForm.cs',
         'src/Inbox2Project.OutlookBridge/Program.cs',
         'src/Inbox2Project.OutlookBridge/ProjectSelectorForm.cs',
         'src/Inbox2Project.OutlookBridge/Inbox2Project.OutlookBridge.csproj',
         'src/Inbox2Project/Inbox2Project.csproj',
         'src/Inbox2Project/Models/SettingsModel.cs',
+        'src/Inbox2Project/Services/IAiFolderNameService.cs',
         'src/Inbox2Project/Services/FileNameBaseNameNormalizer.cs',
         'src/Inbox2Project/Services/OllamaFolderNameService.cs',
         'src/Inbox2Project/Services/OpenAiFolderNameService.cs',
@@ -262,8 +266,10 @@ function Commit-And-PushRelease([string]$version) {
         'tests/Inbox2Project.Tests/Inbox2Project.Tests.csproj',
         'tests/Inbox2Project.Tests/FileNameBaseNameNormalizerTests.cs',
         'tests/Inbox2Project.Tests/OpenAiBillingServiceTests.cs',
+        'tests/Inbox2Project.Tests/ExportWorkflowAiProviderTests.cs',
         'tests/Inbox2Project.Tests/ExportWorkflowProjectListTests.cs',
         'tests/Inbox2Project.Tests/SettingsServiceSubprojectTests.cs',
+        'tests/Inbox2Project.Tests/SettingsServiceAiProviderTests.cs',
         'tests/Inbox2Project.Tests/ExportWorkflowSubprojectTests.cs'
     )
 
@@ -278,7 +284,11 @@ function Commit-And-PushRelease([string]$version) {
     }
 
     Invoke-Tool { git add -- $releasePaths } 'git add failed.'
-    Invoke-Tool { git commit -m "chore(release): v$version" } 'git commit failed.'
+    Invoke-Tool {
+        git commit `
+            -m "chore(release): v$version" `
+            -m "Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
+    } 'git commit failed.'
     Invoke-Tool { git push origin main } 'git push origin main failed.'
 }
 

@@ -7,14 +7,17 @@ public sealed class BridgeProjectSelectorUi : IProjectSelectorUi
 {
     private readonly ISettingsService _settingsService;
     private readonly OpenAiFolderNameService _openAiService;
+    private readonly CopilotFolderNameService _copilotService;
     private readonly IPathSafetyService _pathSafetyService;
 
     public BridgeProjectSelectorUi(
         ISettingsService settingsService,
-        OpenAiFolderNameService openAiService)
+        OpenAiFolderNameService openAiService,
+        CopilotFolderNameService copilotService)
     {
         _settingsService = settingsService;
         _openAiService = openAiService;
+        _copilotService = copilotService;
         _pathSafetyService = new PathSafetyService();
     }
 
@@ -27,7 +30,17 @@ public sealed class BridgeProjectSelectorUi : IProjectSelectorUi
         CancellationToken cancellationToken = default)
     {
         var settings = await _settingsService.LoadAsync(cancellationToken);
-        using var form = new ProjectSelectorForm(_settingsService, _pathSafetyService, projectPaths, settings, suggestedProjectPath, suggestedBaseName, senderName, receivedAt, _openAiService);
+        using var form = new ProjectSelectorForm(
+            _settingsService,
+            _pathSafetyService,
+            projectPaths,
+            settings,
+            suggestedProjectPath,
+            suggestedBaseName,
+            senderName,
+            receivedAt,
+            _openAiService,
+            _copilotService);
         var result = form.ShowDialog();
         if (result == DialogResult.OK && !string.IsNullOrWhiteSpace(form.SelectedProjectPath))
         {

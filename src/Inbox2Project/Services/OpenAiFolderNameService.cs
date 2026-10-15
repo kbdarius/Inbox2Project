@@ -46,7 +46,7 @@ public sealed class OpenAiFolderNameService : IAiFolderNameService
         }
     }
 
-    public string DownloadUrl => ApiKeysUrl;
+    public string SetupUrl => ApiKeysUrl;
 
     public string BillingUrl => BillingCreditsUrl;
 
@@ -141,12 +141,12 @@ public sealed class OpenAiFolderNameService : IAiFolderNameService
         }
     }
 
-    public async Task<OllamaSetupState> GetSetupStateAsync(CancellationToken cancellationToken = default)
+    public async Task<AiFolderNameSetupState> GetSetupStateAsync(CancellationToken cancellationToken = default)
     {
         var apiKey = GetApiKey();
         if (string.IsNullOrWhiteSpace(apiKey))
         {
-            return new OllamaSetupState(false, false, false, ModelName, Array.Empty<string>(), DownloadUrl);
+            return new AiFolderNameSetupState(false, false, false, ModelName, Array.Empty<string>(), SetupUrl);
         }
 
         try
@@ -155,18 +155,18 @@ public sealed class OpenAiFolderNameService : IAiFolderNameService
             using var response = await _httpClient.SendAsync(request, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
-                return new OllamaSetupState(true, true, true, ModelName, new[] { ModelName }, DownloadUrl);
+                return new AiFolderNameSetupState(true, true, true, ModelName, new[] { ModelName }, SetupUrl);
             }
 
-            return new OllamaSetupState(true, true, false, ModelName, Array.Empty<string>(), DownloadUrl);
+            return new AiFolderNameSetupState(true, true, false, ModelName, Array.Empty<string>(), SetupUrl);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return new OllamaSetupState(true, false, false, ModelName, Array.Empty<string>(), DownloadUrl);
+            return new AiFolderNameSetupState(true, false, false, ModelName, Array.Empty<string>(), SetupUrl);
         }
         catch (HttpRequestException)
         {
-            return new OllamaSetupState(true, false, false, ModelName, Array.Empty<string>(), DownloadUrl);
+            return new AiFolderNameSetupState(true, false, false, ModelName, Array.Empty<string>(), SetupUrl);
         }
     }
 

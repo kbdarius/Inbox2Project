@@ -56,6 +56,7 @@ internal static class Program
             using var mailExporter = LoadSingleSelectionFromOutlook(out var selected);
             using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
             var openAiService = new OpenAiFolderNameService(httpClient);
+            await using var copilotService = new CopilotFolderNameService();
 
             var settingsService = new SettingsService();
             await settingsService.LoadAsync();
@@ -66,12 +67,13 @@ internal static class Program
                 new ExportWorkflowService(
                     settingsService,
                     new ProjectDiscoveryService(),
-                    new BridgeProjectSelectorUi(settingsService, openAiService),
+                    new BridgeProjectSelectorUi(settingsService, openAiService, copilotService),
                     new BridgeAttachmentPromptService(mode),
                     new PathSafetyService(),
                     aiFolderNameService,
                     loggingService,
-                    new BridgeDuplicateSubjectPromptService()),
+                    new BridgeDuplicateSubjectPromptService(),
+                    copilotFolderNameService: copilotService),
                 loggingService);
 
             var command = new OutlookContextCommand(handler);
